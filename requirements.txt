@@ -1,0 +1,6 @@
+PyMuPDF
+opencv-python-headless
+numpy
+gradio
+Pillow
+imagehash
