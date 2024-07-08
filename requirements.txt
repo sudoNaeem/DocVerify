@@ -7,6 +7,4 @@ imagehash
 pytesseract
 pdf2image
 scipy
-
-
-
+pdfplumber
