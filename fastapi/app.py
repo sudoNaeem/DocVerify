@@ -1,5 +1,5 @@
 from fastapi import FastAPI, File, UploadFile, HTTPException
-from fastapi.responses import JSONResponse, FileResponse
+from fastapi.responses import JSONResponse
 import os
 import shutil
 import cv2
@@ -40,12 +40,15 @@ def deskew_image(image, angle):
     return rotated
 
 def detect_orientation(image):
-    rgb_image = cv2.cvtColor(np.array(image), cv2.COLOR_BGR2RGB)
-    osd = pytesseract.image_to_osd(rgb_image)
-    rotate_angle = 0
-    if "Rotate: 180" in osd:
-        rotate_angle = 180
-    return rotate_angle
+    try:
+        rgb_image = cv2.cvtColor(np.array(image), cv2.COLOR_BGR2RGB)
+        osd = pytesseract.image_to_osd(rgb_image)
+        rotate_angle = 0
+        if "Rotate: 180" in osd:
+            rotate_angle = 180
+        return rotate_angle
+    except Exception as e:
+        return 0
 
 def remove_white_margins(image):
     img = np.array(image)
@@ -65,7 +68,7 @@ def process_pdf_file(file_path):
 
     for image in images:
         rotate_angle = detect_orientation(image)
-        if (rotate_angle == 180):
+        if rotate_angle == 180:
             image = image.rotate(180, expand=True)
         angle = correct_skew(image)
         deskewed_image = deskew_image(np.array(image), angle)
