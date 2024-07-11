@@ -155,34 +155,36 @@ def compute_hash_similarity(img1, img2):
     similarity = 1 - (hash1 - hash2) / len(hash1.hash) ** 2
     return similarity
 
-@app.post("/upload-pdfs/")
-async def upload_pdfs(file1: UploadFile = File(...), file2: UploadFile = File(...)):
-    if not file1.filename.endswith('.pdf') or not file2.filename.endswith('.pdf'):
+@app.post("/Signature Detection/",operation_id="Signature_Detection")
+async def upload_pdfs(Template: UploadFile = File(...), Scanned: UploadFile = File(...), threshold: float = 0.61):
+    if not Template.filename.endswith('.pdf') or not Scanned.filename.endswith('.pdf'):
         raise HTTPException(status_code=400, detail="Invalid file format. Please upload PDF files.")
+    if not (0 <= threshold <= 1):
+        raise HTTPException(status_code=400, detail="Threshold must be between 0 and 1.")
 
     try:
-        temp_file1_path = f"temp_{file1.filename}"
-        temp_file2_path = f"temp_{file2.filename}"
-        with open(temp_file1_path, 'wb') as out_file:
-            shutil.copyfileobj(file1.file, out_file)
-        with open(temp_file2_path, 'wb') as out_file:
-            shutil.copyfileobj(file2.file, out_file)
+        temp_template_path = f"temp_{Template.filename}"
+        temp_scanned_path = f"temp_{Scanned.filename}"
+        with open(temp_template_path, 'wb') as out_file:
+            shutil.copyfileobj(Template.file, out_file)
+        with open(temp_scanned_path, 'wb') as out_file:
+            shutil.copyfileobj(Scanned.file, out_file)
 
-        processed_file2_path = process_pdf_file(temp_file2_path)
-        doc1 = fitz.open(temp_file1_path)
-        doc2 = fitz.open(processed_file2_path)
-        annotations_info1 = extract_annotations(doc1)
-        output_folder1 = "pdf1_images"
-        output_folder2 = "pdf2_images"
-        output_images1, new_annotations_info1 = extract_images(doc1, annotations_info1, output_folder1, remove_border_flag=True)
-        source_rect = doc1[0].rect
-        target_rect = doc2[0].rect
-        adjusted_annotations_info2 = adjust_annotations_for_pdf2(annotations_info1, source_rect, target_rect)
-        output_images2, _ = extract_images(doc2, adjusted_annotations_info2, output_folder2, remove_border_flag=True)
+        processed_scanned_path = process_pdf_file(temp_scanned_path)
+        doc_template = fitz.open(temp_template_path)
+        doc_scanned = fitz.open(processed_scanned_path)
+        annotations_info_template = extract_annotations(doc_template)
+        output_folder_template = "Template_images"
+        output_folder_scanned = "Scanned_images"
+        output_images_template, new_annotations_info_template = extract_images(doc_template, annotations_info_template, output_folder_template, remove_border_flag=True)
+        source_rect = doc_template[0].rect
+        target_rect = doc_scanned[0].rect
+        adjusted_annotations_scanned = adjust_annotations_for_pdf2(annotations_info_template, source_rect, target_rect)
+        output_images_scanned, _ = extract_images(doc_scanned, adjusted_annotations_scanned, output_folder_scanned, remove_border_flag=True)
         page_results = {}
-        for idx, (img1, img2, annotation) in enumerate(zip(output_images1, output_images2, annotations_info1)):
-            score = compute_hash_similarity(img1, img2)
-            is_signed = score < 0.6
+        for idx, (img_template, img_scanned, annotation) in enumerate(zip(output_images_template, output_images_scanned, annotations_info_template)):
+            score = compute_hash_similarity(img_template, img_scanned)
+            is_signed = score < threshold
             page_number = annotation[0]
             if page_number not in page_results:
                 page_results[page_number] = {"signed": 0, "unsigned": 0}
@@ -194,8 +196,8 @@ async def upload_pdfs(file1: UploadFile = File(...), file2: UploadFile = File(..
             f"page no. {page} has {info['signed']} signed boxes and {info['unsigned']} unsigned boxes"
             for page, info in page_results.items()
         ]
-        os.remove(temp_file1_path)
-        os.remove(temp_file2_path)
-        return {"file1": file1.filename, "file2_original": file2.filename, "file2_processed": processed_file2_path, "results": result}
+        os.remove(temp_template_path)
+        os.remove(temp_scanned_path)
+        return {"Template": Template.filename, "Scanned_original": Scanned.filename, "Scanned_processed": processed_scanned_path, "results": result}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
