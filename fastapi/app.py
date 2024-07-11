@@ -9,7 +9,9 @@ from scipy.ndimage import rotate
 from PIL import Image
 import pytesseract
 import fitz  # PyMuPDF
-import imagehash
+from tensorflow.keras.applications.vgg16 import VGG16, preprocess_input
+from tensorflow.keras.models import Model
+from tensorflow.keras.preprocessing import image
 
 app = FastAPI()
 
@@ -63,7 +65,7 @@ def process_pdf_file(file_path):
 
     for image in images:
         rotate_angle = detect_orientation(image)
-        if rotate_angle == 180:
+        if (rotate_angle == 180):
             image = image.rotate(180, expand=True)
         angle = correct_skew(image)
         deskewed_image = deskew_image(np.array(image), angle)
@@ -147,16 +149,22 @@ def adjust_annotations_for_pdf2(original_annotations, source_rect, target_rect):
         adjusted_annotations.append((page_number, new_x0, new_y0, new_x1, new_y1))
     return adjusted_annotations
 
-def compute_hash_similarity(img1, img2):
-    img1_pil = Image.fromarray(cv2.cvtColor(img1, cv2.COLOR_BGR2RGB))
-    img2_pil = Image.fromarray(cv2.cvtColor(img2, cv2.COLOR_BGR2RGB))
-    hash1 = imagehash.phash(img1_pil)
-    hash2 = imagehash.phash(img2_pil)
-    similarity = 1 - (hash1 - hash2) / len(hash1.hash) ** 2
-    return similarity
+def compute_vgg16_similarity(img1, img2):
+    model = VGG16(weights='imagenet', include_top=False)
+    model = Model(inputs=model.inputs, outputs=model.layers[-1].output)
 
-@app.post("/Signature Detection/",operation_id="Signature_Detection")
-async def upload_pdfs(Template: UploadFile = File(...), Scanned: UploadFile = File(...), threshold: float = 0.61):
+    def get_features(img):
+        img = cv2.resize(img, (224, 224))
+        img = image.img_to_array(img)
+        img = np.expand_dims(img, axis=0)
+        img = preprocess_input(img)
+        return model.predict(img).flatten()
+
+    f1, f2 = get_features(img1), get_features(img2)
+    return np.dot(f1, f2) / (np.linalg.norm(f1) * np.linalg.norm(f2))
+
+@app.post("/Signature Detection/", operation_id="Signature_Detection")
+async def upload_pdfs(Template: UploadFile = File(...), Scanned: UploadFile = File(...), threshold: float = 0.8):
     if not Template.filename.endswith('.pdf') or not Scanned.filename.endswith('.pdf'):
         raise HTTPException(status_code=400, detail="Invalid file format. Please upload PDF files.")
     if not (0 <= threshold <= 1):
@@ -183,7 +191,7 @@ async def upload_pdfs(Template: UploadFile = File(...), Scanned: UploadFile = Fi
         output_images_scanned, _ = extract_images(doc_scanned, adjusted_annotations_scanned, output_folder_scanned, remove_border_flag=True)
         page_results = {}
         for idx, (img_template, img_scanned, annotation) in enumerate(zip(output_images_template, output_images_scanned, annotations_info_template)):
-            score = compute_hash_similarity(img_template, img_scanned)
+            score = compute_vgg16_similarity(img_template, img_scanned)
             is_signed = score < threshold
             page_number = annotation[0]
             if page_number not in page_results:
