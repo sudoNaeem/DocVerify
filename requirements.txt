@@ -8,3 +8,5 @@ opencv-python-headless
 scipy
 PyMuPDF
 tensorflow
+streamlit
+streamlit-drawable-canvas
