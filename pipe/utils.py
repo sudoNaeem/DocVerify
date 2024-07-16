@@ -90,8 +90,10 @@ def process_pdf_file(file_bytes):
 
 def extract_images(doc, annotations_info):
     output_images = []
+    print(annotations_info)
     for annotation in annotations_info:
-        page_number = annotation["page_number"]
+        
+        page_number = annotation["page_number"]-1
         x0, y0, x1, y1 = annotation["start_x"], annotation["start_y"], annotation["end_x"], annotation["end_y"]
         page = doc.load_page(page_number)
         clip = fitz.Rect(x0, y0, x1, y1)
