@@ -5,6 +5,7 @@ from pdf2image import convert_from_bytes
 from scipy.ndimage import rotate
 from PIL import Image
 import pytesseract
+from pymongo import MongoClient
 import fitz  # PyMuPDF
 from tensorflow.keras.models import load_model
 from tensorflow.keras.preprocessing import image
@@ -128,3 +129,34 @@ def resize_pdf(scan_pdf_bytes, template_pdf_bytes):
     scan_writer.write(output_buffer)
     output_buffer.seek(0)
     return output_buffer
+
+
+client = MongoClient("mongodb+srv://admin:admin@cluster0.rykip0e.mongodb.net/")
+
+
+from pymongo import MongoClient
+
+def get_filenames_and_annotations(connection_string):
+    # Connect to the MongoDB cluster
+    client = MongoClient(connection_string)
+    
+    # Access the specific database and collection
+    db = client["pdf_annotations"]
+    collection = db["annotations"]
+    
+    # Retrieve all documents from the collection
+    documents = collection.find()
+    
+    # Extract filenames and annotations
+    results = []
+    for document in documents:
+        filename = document.get('pdf_name')
+        annotations = document.get('annotations')
+        results.append({
+            'filename': filename,
+            'annotations': annotations
+        })
+    
+    return results
+
+
