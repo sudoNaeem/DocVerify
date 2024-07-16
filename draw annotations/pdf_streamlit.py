@@ -15,7 +15,7 @@ class PDFAnnotator:
         return self.get_all_pages_images()
 
     def annotate_pdf(self, page_number, annotations):
-        page = self.pdf_document.load_page(page_number)
+        page = self.pdf_document.load_page(page_number - 1)
         for annotation in annotations:
             if annotation["type"] == "rect":
                 start_x = annotation["left"]
@@ -50,7 +50,7 @@ class PDFAnnotator:
             page = self.pdf_document.load_page(page_num)
             pix = page.get_pixmap()
             img = Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
-            images.append((page_num, np.array(img)))
+            images.append((page_num + 1, np.array(img)))
         return images
 
 pdf_annotator = PDFAnnotator()
@@ -64,7 +64,7 @@ if uploaded_file is not None:
     st.write("Annotate PDF:")
     
     for page_num, pdf_image in pages_images:
-        st.write(f"Page {page_num + 1}")
+        st.write(f"Page {page_num}")
 
         canvas_result = st_canvas(
             fill_color="rgba(255, 0, 0, 0.3)",
@@ -80,7 +80,7 @@ if uploaded_file is not None:
 
         if canvas_result.json_data is not None:
             for obj in canvas_result.json_data["objects"]:
-                obj["label"] = st.text_input(f"Label for annotation on Page {page_num + 1}", key=f"label{page_num}_{obj['left']}_{obj['top']}")
+                obj["label"] = st.text_input(f"Label for annotation on Page {page_num}", key=f"label{page_num}_{obj['left']}_{obj['top']}")
 
             pdf_annotator.annotate_pdf(page_num, canvas_result.json_data["objects"])
 

@@ -13,9 +13,6 @@ from tensorflow.keras.models import Model
 from tensorflow.keras.preprocessing import image
 import json
 from PyPDF2 import PdfReader, PdfWriter
-import os
-os.environ['TF_ENABLE_ONEDNN_OPTS'] = '0'
-
 
 app = FastAPI()
 
