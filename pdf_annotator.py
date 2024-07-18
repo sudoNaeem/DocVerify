@@ -7,13 +7,19 @@ import numpy as np
 import pymongo
 import gridfs
 import io
+import os
+from dotenv import load_dotenv
+
+load_dotenv()
+
+MONGO_CONNECTION_STRING = os.getenv("MONGO_CONNECTION_STRING")
 
 class PDFAnnotator:
     def __init__(self):
         self.pdf_document = None
         self.boxes = []
-        self.client = pymongo.MongoClient("mongodb+srv://admin:admin@cluster0.rykip0e.mongodb.net/")
-        self.db = self.client["pdf_annotations"]
+        self.client = pymongo.MongoClient(MONGO_CONNECTION_STRING)
+        self.db = self.client["signature_detection"]
         self.fs = gridfs.GridFS(self.db)
         self.pdf_name = ""
         self.pdf_id = None

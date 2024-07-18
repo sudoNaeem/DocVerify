@@ -11,4 +11,5 @@ tensorflow
 streamlit
 streamlit-drawable-canvas
 pymongo
-easyocr
+pytesseract
+python-dotenv

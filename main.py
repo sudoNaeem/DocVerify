@@ -3,17 +3,21 @@ from contextlib import asynccontextmanager
 import fitz  # PyMuPDF
 from pymongo import MongoClient
 import io
+import os
+from dotenv import load_dotenv
 import gridfs
 import pytesseract
 from utils import (
     load_vgg16_model, process_pdf_file, extract_images, compute_vgg16_similarity, resize_pdf, get_filenames_and_annotations
 )
 
+load_dotenv()
+
 app = FastAPI()
 
-MONGO_CONNECTION_STRING = "mongodb+srv://admin:admin@cluster0.rykip0e.mongodb.net/"
+MONGO_CONNECTION_STRING = os.getenv("MONGO_CONNECTION_STRING")
 client = MongoClient(MONGO_CONNECTION_STRING)
-db = client["pdf_annotations"]
+db = client["signature_detection"]
 fs = gridfs.GridFS(db)
 
 @asynccontextmanager
@@ -22,20 +26,6 @@ async def lifespan(app: FastAPI):
     yield
 
 app = FastAPI(lifespan=lifespan)
-
-def get_filenames_and_annotations():
-    connection_string='mongodb+srv://admin:admin@cluster0.rykip0e.mongodb.net/'
-    client = MongoClient(connection_string)
-    db = client.pdf_annotations
-    collection = db.annotations
-    documents = collection.find()
-    results = {}
-    for document in documents:
-        filename = document.get('pdf_name')
-        annotations = document.get('annotations')
-        if filename:
-            results[filename] = annotations
-    return results
 
 @app.get("/list_templates/", operation_id="List_Templates")
 async def list_templates():

@@ -13,6 +13,10 @@ from tensorflow.keras.applications.vgg16 import preprocess_input
 from io import BytesIO
 import json
 from PyPDF2 import PdfReader, PdfWriter
+import os
+from dotenv import load_dotenv
+
+load_dotenv()
 
 
 def load_vgg16_model():
@@ -135,10 +139,11 @@ def resize_pdf(scan_pdf_bytes, template_pdf_bytes):
 
 from pymongo import MongoClient
 
+connection_string=os.getenv("MONGO_CONNECTION_STRING")
+
 def get_filenames_and_annotations():
-    connection_string='mongodb+srv://admin:admin@cluster0.rykip0e.mongodb.net/'
     client = MongoClient(connection_string)
-    db = client.pdf_annotations
+    db = client.signature_detection
     collection = db.annotations
     documents = collection.find()
     results = {}
@@ -147,5 +152,6 @@ def get_filenames_and_annotations():
         annotations = document.get('annotations')
         if filename:
             results[filename] = annotations
+    print(results)
     return results
 
