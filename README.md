@@ -1,6 +1,6 @@
 # Project Overview
 
-This project consists of a FastAPI application for backend services and a Streamlit application for PDF annotation. The following files are included:
+This project consists of a FastAPI application for PDF Comparison and a Streamlit application for PDF annotation. The following files are included:
 
 ## Files
 
@@ -8,17 +8,25 @@ This project consists of a FastAPI application for backend services and a Stream
 This script allows you to download the VGG16 model with ImageNet weights.
 
 ### `main.py`
-This is the main FastAPI application. It provides the backend services for the project.
+This is the main FastAPI application. It provides the backend services for the project. It has two endpoints:
+- **GET** `/list_templates/`: Lists the template PDFs in the database.
+- **POST** `/SignatureDetection/`: Uploads PDFs and performs the signature detection function.
+![FastAPI Interface](https://github.com/ab-ark/Signature-Detection/blob/main/fastapi.png)
+
 
 ### `pdf_annotator.py`
 This Streamlit application allows users to upload PDF files, annotate them, and store the annotations in the database.
+![Streamlit application](https://github.com/ab-ark/Signature-Detection/blob/main/streamlit.png)
 
 ### `requirements.txt`
 Contains all the dependencies required for the project.
 
 ### `utils.py`
-Utility functions used across the project.
-
+This file includes utility functions used across the project, including:
+- **PDF Processing**: Functions to correct skew, deskew, detect orientation, and remove white margins from PDF images.
+- **Image Extraction**: Functions to extract images from PDF annotations.
+- **Similarity Computation**: Functions to compute VGG16 model similarity between images.
+- **Database Interaction**: Functions to interact with MongoDB to retrieve filenames and annotations.
 ## Setup Instructions
 
 1. **Install Dependencies**
