@@ -33,17 +33,21 @@ This file includes utility functions used across the project, including:
 1. **Install Dependencies**
    ```sh
    pip install -r requirements.txt
+   ```
 
-2.**Download VGG16 Model**
+2. **Download VGG16 Model**
    Run the downloadmodel.py script to download the VGG16 model with ImageNet weights.
    ```sh
    python3 downloadmodel.py
+   ```
 
 3. **Run Streamlit Application:**
    ```sh
-   Streamlit run app.py`
+   streamlit run app.py
+   ```
 
-4. **Run fastapi applications:**
+4. **Run FastAPI Application:**
    ```sh
-   Fastapi dev main.py
+   fastapi dev main.py
+   ```
 
