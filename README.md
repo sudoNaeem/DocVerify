@@ -27,8 +27,23 @@ This file includes utility functions used across the project, including:
 - **Image Extraction**: Functions to extract images from PDF annotations.
 - **Similarity Computation**: Functions to compute VGG16 model similarity between images.
 - **Database Interaction**: Functions to interact with MongoDB to retrieve filenames and annotations.
+
 ## Setup Instructions
 
 1. **Install Dependencies**
    ```sh
    pip install -r requirements.txt
+
+2.**Download VGG16 Model**
+   Run the downloadmodel.py script to download the VGG16 model with ImageNet weights.
+   ```sh
+   python3 downloadmodel.py
+
+3. **Run Streamlit Application:**
+   ```sh
+   Streamlit run app.py`
+
+4. **Run fastapi applications:**
+   ```sh
+   Fastapi dev main.py
+
