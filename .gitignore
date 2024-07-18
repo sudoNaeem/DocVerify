@@ -3,3 +3,6 @@ myenv
 *.pdf
 *.png
 *.keras
+__pycache__/
+.env
+
