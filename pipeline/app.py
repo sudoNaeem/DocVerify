@@ -4,6 +4,7 @@ import fitz  # PyMuPDF
 from pymongo import MongoClient
 import io
 import gridfs
+import pytesseract
 from utils import (
     load_vgg16_model, process_pdf_file, extract_images, compute_vgg16_similarity, resize_pdf, get_filenames_and_annotations
 )
@@ -21,6 +22,20 @@ async def lifespan(app: FastAPI):
     yield
 
 app = FastAPI(lifespan=lifespan)
+
+def get_filenames_and_annotations():
+    connection_string='mongodb+srv://admin:admin@cluster0.rykip0e.mongodb.net/'
+    client = MongoClient(connection_string)
+    db = client.pdf_annotations
+    collection = db.annotations
+    documents = collection.find()
+    results = {}
+    for document in documents:
+        filename = document.get('pdf_name')
+        annotations = document.get('annotations')
+        if filename:
+            results[filename] = annotations
+    return results
 
 @app.get("/list_templates/", operation_id="List_Templates")
 async def list_templates():
@@ -59,10 +74,12 @@ async def upload_pdfs(filename: str, Scanned: UploadFile = File(...), threshold:
         for img_template, img_scanned, annotation in zip(output_images_template, output_images_scanned, annotations_info):
             score = compute_vgg16_similarity(img_template, img_scanned)
             is_present = bool(score < threshold)
+            ocr_text = pytesseract.image_to_string(img_scanned)
             results.append({
                 "pageNumber": annotation["page_number"],
                 "tagId": annotation["label"],
-                "isPresent": is_present
+                "isPresent": is_present,
+                "ocrText": ocr_text
             })
         
         return {"data": results}
