@@ -11,4 +11,4 @@ tensorflow
 streamlit
 streamlit-drawable-canvas
 pymongo
-gridfs
+easyocr
