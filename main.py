@@ -7,9 +7,10 @@ import os
 from dotenv import load_dotenv
 import gridfs
 import pytesseract
+import easyocr
+from difflib import unified_diff
 from utils import (
-    load_vgg16_model, process_pdf_file, extract_images, compute_vgg16_similarity, resize_pdf, get_filenames_and_annotations
-)
+    load_vgg16_model, process_pdf_file, extract_images, compute_vgg16_similarity, resize_pdf, get_filenames_and_annotations)
 
 load_dotenv()
 
@@ -31,6 +32,9 @@ app = FastAPI(lifespan=lifespan)
 async def list_templates():
     templates = db.annotations.find({}, {"pdf_name": 1, "_id": 0})
     return {"templates": list(templates)}
+
+# Initialize the EasyOCR reader globally
+reader = easyocr.Reader(['en'], gpu=False)  # Set gpu=False if you're not using GPU
 
 @app.post("/SignatureDetection/")
 async def upload_pdfs(filename: str, Scanned: UploadFile = File(...), threshold: float = 0.8):
@@ -64,12 +68,13 @@ async def upload_pdfs(filename: str, Scanned: UploadFile = File(...), threshold:
         for img_template, img_scanned, annotation in zip(output_images_template, output_images_scanned, annotations_info):
             score = compute_vgg16_similarity(img_template, img_scanned)
             is_present = bool(score < threshold)
-            ocr_text = pytesseract.image_to_string(img_scanned)
+            ocr_text_scanned = '\n'.join([text for _, text, _ in reader.readtext(img_scanned)])
+
             results.append({
                 "pageNumber": annotation["page_number"],
                 "tagId": annotation["label"],
                 "isPresent": is_present,
-                "String": ocr_text
+                "data": ocr_text_scanned.splitlines(),
             })
         
         return {"data": results}
