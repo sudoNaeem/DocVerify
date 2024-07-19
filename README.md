@@ -11,12 +11,12 @@ This script allows you to download the VGG16 model with ImageNet weights.
 This is the main FastAPI application. It provides the backend services for the project. It has two endpoints:
 - **GET** `/list_templates/`: Lists the template PDFs in the database.
 - **POST** `/SignatureDetection/`: Uploads PDFs and performs the signature detection function.
-![FastAPI Interface](https://github.com/ab-ark/Signature-Detection/blob/main/fastapi.png)
+![FastAPI Interface](https://github.com/ab-ark/Signature-Detection/blob/img/fastapi.png)
 
 
 ### `pdf_annotator.py`
 This Streamlit application allows users to upload PDF files, annotate them, and store the annotations in the database.
-![Streamlit application](https://github.com/ab-ark/Signature-Detection/blob/main/streamlit.png)
+![Streamlit application](https://github.com/ab-ark/Signature-Detection/blob/img/streamlit.png)
 
 ### `requirements.txt`
 Contains all the dependencies required for the project.
