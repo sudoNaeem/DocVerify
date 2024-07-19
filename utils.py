@@ -152,6 +152,5 @@ def get_filenames_and_annotations():
         annotations = document.get('annotations')
         if filename:
             results[filename] = annotations
-    print(results)
     return results
 
