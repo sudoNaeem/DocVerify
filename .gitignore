@@ -1,7 +1,7 @@
 myenv/*
 myenv
 *.pdf
-*.png
+.png
 *.keras
 __pycache__/
 .env
