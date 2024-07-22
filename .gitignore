@@ -6,4 +6,5 @@ __pycache__/
 .env
 image (1).png
 image (1).png
+*.json
 

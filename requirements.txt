@@ -11,5 +11,7 @@ tensorflow
 streamlit
 streamlit-drawable-canvas
 pymongo
-pytesseract
+PyPDF2
 python-dotenv
+google-cloud
+google-cloud-vision

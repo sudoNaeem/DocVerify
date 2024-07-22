@@ -4,15 +4,13 @@ import fitz  # PyMuPDF
 from pymongo import MongoClient
 import io
 import os
-from dotenv import load_dotenv
+#from dotenv import load_dotenv
 import gridfs
-import pytesseract
-import easyocr
-from difflib import unified_diff
+import cv2
 from utils import (
     load_vgg16_model, process_pdf_file, extract_images, compute_vgg16_similarity, resize_pdf, get_filenames_and_annotations)
 
-load_dotenv()
+#load_dotenv()
 
 app = FastAPI()
 
@@ -34,10 +32,10 @@ async def list_templates():
     return {"templates": list(templates)}
 
 # Initialize the EasyOCR reader globally
-reader = easyocr.Reader(['en'], gpu=False)  # Set gpu=False if you're not using GPU
+#reader = easyocr.Reader(['en'], gpu=False)  # Set gpu=False if you're not using GPU
 
 @app.post("/SignatureDetection/")
-async def upload_pdfs(filename: str, Scanned: UploadFile = File(...), threshold: float = 0.8):
+async def upload_pdfs(filename: str, Scanned: UploadFile = File(...), threshold: float = 0.5):
     if not Scanned.filename.endswith('.pdf'):
         raise HTTPException(status_code=400, detail="Invalid file format. Please upload a PDF file.")
     if not (0 <= threshold <= 1):
@@ -64,17 +62,16 @@ async def upload_pdfs(filename: str, Scanned: UploadFile = File(...), threshold:
         output_images_template = extract_images(doc_template, annotations_info)
         output_images_scanned = extract_images(doc_scanned, annotations_info)
         
-        results = []
+        results = []   
         for img_template, img_scanned, annotation in zip(output_images_template, output_images_scanned, annotations_info):
-            score = compute_vgg16_similarity(img_template, img_scanned)
+            score = float(compute_vgg16_similarity(img_template, img_scanned))
             is_present = bool(score < threshold)
-            ocr_text_scanned = '\n'.join([text for _, text, _ in reader.readtext(img_scanned)])
-
+            #ocr_text_scanned = '\n'.join([text for _, text, _ in reader.readtext(img_scanned)])
             results.append({
                 "pageNumber": annotation["page_number"],
                 "tagId": annotation["label"],
                 "isPresent": is_present,
-                "data": ocr_text_scanned.splitlines(),
+                #"data": ocr_text_scanned.splitlines(),
             })
         
         return {"data": results}
@@ -83,4 +80,4 @@ async def upload_pdfs(filename: str, Scanned: UploadFile = File(...), threshold:
 
 if __name__ == '__main__':
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8001)
+    uvicorn.run(app, host="0.0.0.0", port=8080)

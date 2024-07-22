@@ -14,9 +14,9 @@ from io import BytesIO
 import json
 from PyPDF2 import PdfReader, PdfWriter
 import os
-from dotenv import load_dotenv
+#from dotenv import load_dotenv
 
-load_dotenv()
+#load_dotenv()
 
 
 def load_vgg16_model():
@@ -84,8 +84,9 @@ def process_pdf_file(file_bytes):
         angle = correct_skew(image)
         deskewed_image = deskew_image(np.array(image), angle)
         final_image = Image.fromarray(deskewed_image)
-        margin_removed_image = remove_white_margins(final_image)
-        processed_images.append(margin_removed_image.convert('RGB'))
+        #margin_removed_image = remove_white_margins(final_image)
+        processed_images.append(final_image.convert('RGB'))
+        #processed_images.append(margin_removed_image.convert('RGB'))
 
     output_buffer = BytesIO()
     processed_images[0].save(output_buffer, format='PDF', save_all=True, append_images=processed_images[1:])
