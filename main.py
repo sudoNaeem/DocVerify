@@ -19,10 +19,10 @@ logger = logging.getLogger(__name__)
 
 app = FastAPI()
 
-#POSTGRESQL_CONNECTION_STRING = os.getenv("POSTGRESQL_CONNECTION_STRING")
-#AWS_ACCESS_KEY_ID = os.getenv("AWS_ACCESS_KEY_ID")
-#AWS_SECRET_ACCESS_KEY = os.getenv("AWS_SECRET_ACCESS_KEY")
-#S3_BUCKET_NAME = os.getenv("S3_BUCKET_NAME")
+POSTGRESQL_CONNECTION_STRING = os.getenv("POSTGRESQL_CONNECTION_STRING")
+AWS_ACCESS_KEY_ID = os.getenv("AWS_ACCESS_KEY_ID")
+AWS_SECRET_ACCESS_KEY = os.getenv("AWS_SECRET_ACCESS_KEY")
+S3_BUCKET_NAME = os.getenv("S3_BUCKET_NAME")
 
 # Initialize S3 client
 s3_client = boto3.client(
@@ -95,12 +95,12 @@ async def upload_pdfs(filename: str, Scanned: UploadFile = File(...), threshold:
             score = float(compute_vgg16_similarity(img_template, img_scanned))
             is_present = bool(score < threshold)
             ocr_text_scanned = detect_document_words(cv2.imencode('.png', img_scanned)[1].tobytes())
-            #ocr_text_template = detect_document_words(cv2.imencode('.png', img_template)[1].tobytes())
+            ocr_text_template = detect_document_words(cv2.imencode('.png', img_template)[1].tobytes())
             results.append({
                 "pageNumber": annotation["page_number"],
                 "tagId": annotation["label"],
                 "isPresent": is_present,
-                #"data_template": ocr_text_template.splitlines(),
+                "data_template": ocr_text_template.splitlines(),
                 "data_scanned": ocr_text_scanned.splitlines(),
             })
         

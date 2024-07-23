@@ -18,7 +18,7 @@ import psycopg2
 
 #load_dotenv()
 
-#POSTGRESQL_CONNECTION_STRING = os.getenv("POSTGRESQL_CONNECTION_STRING")
+POSTGRESQL_CONNECTION_STRING = os.getenv("POSTGRESQL_CONNECTION_STRING")
 
 
 def load_vgg16_model():
