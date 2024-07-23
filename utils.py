@@ -14,9 +14,12 @@ from io import BytesIO
 import json
 from PyPDF2 import PdfReader, PdfWriter
 import os
-#from dotenv import load_dotenv
+import psycopg2
+from dotenv import load_dotenv
 
-#load_dotenv()
+load_dotenv()
+
+POSTGRESQL_CONNECTION_STRING = os.getenv("POSTGRESQL_CONNECTION_STRING")
 
 
 def load_vgg16_model():
@@ -138,20 +141,39 @@ def resize_pdf(scan_pdf_bytes, template_pdf_bytes):
     return output_buffer
 
 
-from pymongo import MongoClient
-
-connection_string=os.getenv("MONGO_CONNECTION_STRING")
-
 def get_filenames_and_annotations():
-    client = MongoClient(connection_string)
-    db = client.signature_detection
-    collection = db.annotations
-    documents = collection.find()
+    connection_string = os.getenv("POSTGRESQL_CONNECTION_STRING")
+    conn = psycopg2.connect(connection_string)
+    cursor = conn.cursor()
+    cursor.execute("SELECT pdf_name, annotations FROM annotations")
+    documents = cursor.fetchall()
     results = {}
     for document in documents:
-        filename = document.get('pdf_name')
-        annotations = document.get('annotations')
+        filename, annotations = document
         if filename:
-            results[filename] = annotations
+            results[filename] = json.loads(annotations) if isinstance(annotations, str) else annotations
+    cursor.close()
+    conn.close()
     return results
 
+
+def detect_document_words(image_content):
+    """Detects document words in an image and returns them as a string."""
+    from google.cloud import vision
+    client = vision.ImageAnnotatorClient()
+    image = vision.Image(content=image_content)
+    response = client.document_text_detection(image=image)
+    words = []
+
+    for page in response.full_text_annotation.pages:
+        for block in page.blocks:
+            for paragraph in block.paragraphs:
+                for word in paragraph.words:
+                    word_text = "".join([symbol.text for symbol in word.symbols])
+                    words.append(word_text)
+    if response.error.message:
+        raise Exception(
+            "{}\nFor more info on error messages, check: "
+            "https://cloud.google.com/apis/design/errors".format(response.error.message)
+        )
+    return " ".join(words)

@@ -1,23 +1,35 @@
+import logging
 from fastapi import FastAPI, HTTPException, File, UploadFile
 from contextlib import asynccontextmanager
 import fitz  # PyMuPDF
-from pymongo import MongoClient
 import io
 import os
 #from dotenv import load_dotenv
-import gridfs
 import cv2
 from utils import (
-    load_vgg16_model, process_pdf_file, extract_images, compute_vgg16_similarity, resize_pdf, get_filenames_and_annotations)
+    load_vgg16_model, process_pdf_file, extract_images, compute_vgg16_similarity, resize_pdf, get_filenames_and_annotations, detect_document_words)
+import psycopg2
+import boto3
 
 #load_dotenv()
 
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
 app = FastAPI()
 
-MONGO_CONNECTION_STRING = os.getenv("MONGO_CONNECTION_STRING")
-client = MongoClient(MONGO_CONNECTION_STRING)
-db = client["signature_detection"]
-fs = gridfs.GridFS(db)
+#POSTGRESQL_CONNECTION_STRING = os.getenv("POSTGRESQL_CONNECTION_STRING")
+#AWS_ACCESS_KEY_ID = os.getenv("AWS_ACCESS_KEY_ID")
+#AWS_SECRET_ACCESS_KEY = os.getenv("AWS_SECRET_ACCESS_KEY")
+#S3_BUCKET_NAME = os.getenv("S3_BUCKET_NAME")
+
+# Initialize S3 client
+s3_client = boto3.client(
+    's3',
+    aws_access_key_id=AWS_ACCESS_KEY_ID,
+    aws_secret_access_key=AWS_SECRET_ACCESS_KEY
+)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -28,11 +40,18 @@ app = FastAPI(lifespan=lifespan)
 
 @app.get("/list_templates/", operation_id="List_Templates")
 async def list_templates():
-    templates = db.annotations.find({}, {"pdf_name": 1, "_id": 0})
-    return {"templates": list(templates)}
-
-# Initialize the EasyOCR reader globally
-#reader = easyocr.Reader(['en'], gpu=False)  # Set gpu=False if you're not using GPU
+    try:
+        conn = psycopg2.connect(POSTGRESQL_CONNECTION_STRING)
+        cursor = conn.cursor()
+        cursor.execute("SELECT DISTINCT pdf_name FROM annotations")
+        templates = cursor.fetchall()
+        cursor.close()
+        conn.close()
+        template_list = [template[0] for template in templates]
+        return {"templates": template_list}
+    except Exception as e:
+        logger.error(f"Error listing templates: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/SignatureDetection/")
 async def upload_pdfs(filename: str, Scanned: UploadFile = File(...), threshold: float = 0.5):
@@ -45,15 +64,24 @@ async def upload_pdfs(filename: str, Scanned: UploadFile = File(...), threshold:
         scanned_bytes = await Scanned.read()
         annotations = get_filenames_and_annotations()
         if filename not in annotations:
+            logger.warning(f"File '{filename}' not found in annotations.")
             raise HTTPException(status_code=404, detail=f"File '{filename}' not found")
 
         annotations_info = annotations[filename]
 
-        # Retrieve the template PDF from GridFS
-        template_file = fs.find_one({"filename": filename})
-        if not template_file:
-            raise HTTPException(status_code=404, detail=f"Template file '{filename}' not found in the database")
-        template_bytes = template_file.read()
+        # Retrieve the template PDF from S3
+        s3_key = f"pdfs/{filename}"
+        logger.info(f"Retrieving template from S3 with key: {s3_key}")
+        try:
+            s3_response = s3_client.get_object(Bucket=S3_BUCKET_NAME, Key=s3_key)
+            template_bytes = s3_response['Body'].read()
+            logger.info(f"Successfully retrieved template '{filename}' from S3")
+        except s3_client.exceptions.NoSuchKey:
+            logger.error(f"Template file '{filename}' not found in S3 bucket.")
+            raise HTTPException(status_code=404, detail=f"Template file '{filename}' not found in S3 bucket.")
+        except Exception as e:
+            logger.error(f"Error retrieving template file '{filename}' from S3: {str(e)}")
+            raise HTTPException(status_code=500, detail=f"Error retrieving template file '{filename}' from S3: {str(e)}")
 
         processed_scanned_buffer = process_pdf_file(scanned_bytes)
         resized_scanned_buffer = resize_pdf(processed_scanned_buffer.getvalue(), template_bytes)
@@ -66,16 +94,19 @@ async def upload_pdfs(filename: str, Scanned: UploadFile = File(...), threshold:
         for img_template, img_scanned, annotation in zip(output_images_template, output_images_scanned, annotations_info):
             score = float(compute_vgg16_similarity(img_template, img_scanned))
             is_present = bool(score < threshold)
-            #ocr_text_scanned = '\n'.join([text for _, text, _ in reader.readtext(img_scanned)])
+            ocr_text_scanned = detect_document_words(cv2.imencode('.png', img_scanned)[1].tobytes())
+            #ocr_text_template = detect_document_words(cv2.imencode('.png', img_template)[1].tobytes())
             results.append({
                 "pageNumber": annotation["page_number"],
                 "tagId": annotation["label"],
                 "isPresent": is_present,
-                #"data": ocr_text_scanned.splitlines(),
+                #"data_template": ocr_text_template.splitlines(),
+                "data_scanned": ocr_text_scanned.splitlines(),
             })
         
         return {"data": results}
     except Exception as e:
+        logger.error(f"Error during signature detection: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
 if __name__ == '__main__':

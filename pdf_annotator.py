@@ -3,97 +3,99 @@ import streamlit as st
 from streamlit_drawable_canvas import st_canvas
 from PIL import Image
 import numpy as np
-import pymongo
-import gridfs
+import boto3
 import io
 import os
-from dotenv import load_dotenv
+#from dotenv import load_dotenv
+import psycopg2
+import json
 
-load_dotenv()
+#load_dotenv()
 
-MONGO_CONNECTION_STRING = os.getenv("MONGO_CONNECTION_STRING")
+#POSTGRESQL_CONNECTION_STRING = os.getenv("POSTGRESQL_CONNECTION_STRING")
+#AWS_ACCESS_KEY_ID = os.getenv("AWS_ACCESS_KEY_ID")
+#AWS_SECRET_ACCESS_KEY = os.getenv("AWS_SECRET_ACCESS_KEY")
+#S3_BUCKET_NAME = os.getenv("S3_BUCKET_NAME")
 
-class PDFAnnotator:
+@st.cache_resource
+def get_pg_connection():
+    pg_conn = psycopg2.connect(POSTGRESQL_CONNECTION_STRING)
+    pg_cursor = pg_conn.cursor()
+    pg_cursor.execute('''
+        CREATE TABLE IF NOT EXISTS annotations (
+            id SERIAL PRIMARY KEY,
+            pdf_name TEXT,
+            annotations JSONB
+        );
+    ''')
+    pg_conn.commit()
+    return pg_conn, pg_cursor
+
+@st.cache_resource
+def get_s3_client():
+    s3_client = boto3.client(
+        's3',
+        aws_access_key_id=AWS_ACCESS_KEY_ID,
+        aws_secret_access_key=AWS_SECRET_ACCESS_KEY
+    )
+    return s3_client
+
+pg_conn, pg_cursor = get_pg_connection()
+s3_client = get_s3_client()
+
+class PDFManager:
     def __init__(self):
-        self.pdf_document = None
-        self.client = pymongo.MongoClient(MONGO_CONNECTION_STRING)
-        self.db = self.client["signature_detection"]
-        self.fs = gridfs.GridFS(self.db)
-        self.pdf_name = ""
-        self.pdf_id = None
+        self.s3_client = s3_client
+        self.bucket_name = S3_BUCKET_NAME
 
-    def open_pdf(self, file, name):
-        self.pdf_name = name
-        file_data = io.BytesIO(file.getbuffer())
-        self.pdf_id = self.fs.put(file_data, filename=self.pdf_name)
-        pdf_data = self.fs.get(self.pdf_id).read()
-        self.pdf_document = fitz.open(stream=pdf_data, filetype="pdf")
-        return self.get_all_pages_images()
-
-    def annotate_pdf(self, page_number, annotations):
-        page = self.pdf_document.load_page(page_number)
-        boxes = []
-        for annotation in annotations:
-            if annotation["type"] == "rect":
-                start_x = annotation["left"]
-                start_y = annotation["top"]
-                end_x = annotation["left"] + annotation["width"]
-                end_y = annotation["top"] + annotation["height"]
-                rect = fitz.Rect(start_x, start_y, end_x, end_y)
-                label = annotation.get("label", "")
-                page.add_rect_annot(rect)
-                if label:
-                    text_rect = fitz.Rect(end_x, start_y, end_x + 100, start_y + 30)
-                    page.insert_textbox(text_rect, label, fontsize=12, color=(1, 0, 0))
-                boxes.append({
-                    "page_number": page_number + 1,
-                    "start_x": start_x,
-                    "start_y": start_y,
-                    "end_x": end_x,
-                    "end_y": end_y,
-                    "label": label
-                })
-        return boxes
-
-    def save_annotations(self, boxes):
-        unique_boxes = self.deduplicate_annotations(boxes)
-        annotation_data = {
-            "pdf_name": self.pdf_name,
-            "pdf_id": self.pdf_id,
-            "annotations": unique_boxes
-        }
-        self.db.annotations.insert_one(annotation_data)
-        return annotation_data
-
-    def deduplicate_annotations(self, boxes):
-        seen = set()
-        unique_boxes = []
-        for box in boxes:
-            box_tuple = (box["page_number"], box["start_x"], box["start_y"], box["end_x"], box["end_y"])
-            if box_tuple not in seen:
-                seen.add(box_tuple)
-                unique_boxes.append(box)
-        return unique_boxes
-
-    def get_all_pages_images(self):
-        images = []
-        for page_num in range(len(self.pdf_document)):
-            page = self.pdf_document.load_page(page_num)
-            pix = page.get_pixmap()
-            img = Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
-            images.append((page_num, np.array(img)))
-        return images
+    def upload_pdf(self, file, pdf_name):
+        file_data = file.read()
+        s3_key = f"pdfs/{pdf_name}"
+        self.s3_client.put_object(Bucket=self.bucket_name, Key=s3_key, Body=file_data)
+        return s3_key
 
     def retrieve_pdf(self, pdf_name):
-        annotation = self.db.annotations.find_one({"pdf_name": pdf_name})
-        if annotation:
-            pdf_id = annotation["pdf_id"]
-            pdf_data = self.fs.get(pdf_id).read()
-            self.pdf_document = fitz.open(stream=pdf_data, filetype="pdf")
-            return self.get_all_pages_images()
+        s3_key = f"pdfs/{pdf_name}"
+        pdf_data = self.s3_client.get_object(Bucket=self.bucket_name, Key=s3_key)['Body'].read()
+        return pdf_data
+
+class AnnotationManager:
+    def __init__(self):
+        self.pg_conn = pg_conn
+        self.pg_cursor = pg_cursor
+
+    def save_annotations(self, pdf_name, annotations):
+        unique_annotations = self.deduplicate_annotations(annotations)
+        annotation_data = {
+            "pdf_name": pdf_name,
+            "annotations": unique_annotations
+        }
+        self.pg_cursor.execute(
+            "INSERT INTO annotations (pdf_name, annotations) VALUES (%s, %s)",
+            (pdf_name, json.dumps(unique_annotations))
+        )
+        self.pg_conn.commit()
+        return annotation_data
+
+    def retrieve_annotations(self, pdf_name):
+        self.pg_cursor.execute("SELECT annotations FROM annotations WHERE pdf_name = %s", (pdf_name,))
+        result = self.pg_cursor.fetchone()
+        if result:
+            return result[0] if isinstance(result[0], list) else json.loads(result[0])
         return None
 
-pdf_annotator = PDFAnnotator()
+    def deduplicate_annotations(self, annotations):
+        seen = set()
+        unique_annotations = []
+        for annotation in annotations:
+            annotation_tuple = (annotation["page_number"], annotation["start_x"], annotation["start_y"], annotation["end_x"], annotation["end_y"], annotation["label"])
+            if annotation_tuple not in seen:
+                seen.add(annotation_tuple)
+                unique_annotations.append(annotation)
+        return unique_annotations
+
+pdf_manager = PDFManager()
+annotation_manager = AnnotationManager()
 
 st.title("PDF Annotator")
 
@@ -106,14 +108,19 @@ if "current_page" not in st.session_state:
 uploaded_file = st.file_uploader("Upload PDF", type=["pdf"])
 if uploaded_file is not None:
     pdf_name = uploaded_file.name
-    existing_pdf = pdf_annotator.db.annotations.find_one({"pdf_name": pdf_name})
 
-    if existing_pdf:
+    existing_annotations = annotation_manager.retrieve_annotations(pdf_name)
+    if existing_annotations:
         st.error(f"The name '{pdf_name}' already exists. Please upload a PDF with a different name.")
     else:
-        pages_images = pdf_annotator.open_pdf(uploaded_file, pdf_name)
-        st.success(f"Annotations can now be added to '{pdf_name}'.")
+        s3_key = pdf_manager.upload_pdf(uploaded_file, pdf_name)
+        st.success(f"PDF uploaded to S3 with key '{s3_key}'. Annotations can now be added to '{pdf_name}'.")
 
+        pdf_data = pdf_manager.retrieve_pdf(pdf_name)
+        pdf_document = fitz.open(stream=pdf_data, filetype="pdf")
+        pages_images = [(page_num, np.array(Image.frombytes("RGB", [pix.width, pix.height], pix.samples)))
+                        for page_num, page in enumerate(pdf_document)
+                        for pix in [page.get_pixmap()]]
         total_pages = len(pages_images)
         current_page = st.session_state.current_page
 
@@ -138,18 +145,27 @@ if uploaded_file is not None:
 
             new_annotations = []
             for obj in canvas_result.json_data["objects"]:
+                start_x = obj["left"]
+                start_y = obj["top"]
+                end_x = obj["left"] + obj["width"]
+                end_y = obj["top"] + obj["height"]
                 label = st.text_input(f"Label for annotation on Page {page_num + 1}", key=f"label{page_num}_{obj['left']}_{obj['top']}")
                 if label.strip() == "":
                     st.error("Label cannot be empty. Please provide a label for all annotations.")
                 else:
-                    obj["label"] = label
-                    new_annotations.append(obj)
+                    new_annotations.append({
+                        "page_number": page_num + 1,
+                        "start_x": start_x,
+                        "start_y": start_y,
+                        "end_x": end_x,
+                        "end_y": end_y,
+                        "label": label
+                    })
 
-            # Deduplicate annotations for the current page before saving to session state
             seen = set()
             unique_annotations = []
             for annotation in new_annotations:
-                annotation_tuple = (annotation["left"], annotation["top"], annotation["width"], annotation["height"])
+                annotation_tuple = (annotation["page_number"], annotation["start_x"], annotation["start_y"], annotation["end_x"], annotation["end_y"], annotation["label"])
                 if annotation_tuple not in seen:
                     seen.add(annotation_tuple)
                     unique_annotations.append(annotation)
@@ -177,10 +193,9 @@ if uploaded_file is not None:
             all_boxes = []
             for page, annotations in st.session_state.annotations.items():
                 page_number = int(page.split("_")[1])
-                boxes = pdf_annotator.annotate_pdf(page_number, annotations)
-                all_boxes.extend(boxes)
+                all_boxes.extend(annotations)
 
-            result = pdf_annotator.save_annotations(all_boxes)
+            result = annotation_manager.save_annotations(pdf_name, all_boxes)
             st.success("Annotations saved.")
             st.write("Annotations saved to database:")
             st.json(result)
@@ -189,11 +204,24 @@ st.write("Retrieve and Display PDF:")
 
 pdf_to_retrieve = st.text_input("Enter the name of the PDF to retrieve")
 if st.button("Retrieve PDF"):
-    retrieved_pages_images = pdf_annotator.retrieve_pdf(pdf_to_retrieve)
-    if retrieved_pages_images:
+    pdf_data = pdf_manager.retrieve_pdf(pdf_to_retrieve)
+    if pdf_data:
         st.success(f"Retrieved and displaying '{pdf_to_retrieve}'")
-        for page_num, pdf_image in retrieved_pages_images:
+        pdf_document = fitz.open(stream=pdf_data, filetype="pdf")
+        pages_images = [(page_num, np.array(Image.frombytes("RGB", [pix.width, pix.height], pix.samples)))
+                        for page_num, page in enumerate(pdf_document)
+                        for pix in [page.get_pixmap()]]
+        for page_num, pdf_image in pages_images:
             st.write(f"Page {page_num + 1}")
             st.image(pdf_image)
     else:
         st.error(f"No PDF found with the name '{pdf_to_retrieve}'")
+
+annotations_to_retrieve = st.text_input("Enter the name of the PDF to retrieve annotations for")
+if st.button("Retrieve Annotations"):
+    annotations = annotation_manager.retrieve_annotations(annotations_to_retrieve)
+    if annotations:
+        st.success(f"Annotations for '{annotations_to_retrieve}'")
+        st.json(annotations)
+    else:
+        st.error(f"No annotations found for '{annotations_to_retrieve}'")
