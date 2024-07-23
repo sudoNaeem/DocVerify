@@ -5,7 +5,6 @@ from pdf2image import convert_from_bytes
 from scipy.ndimage import rotate
 from PIL import Image
 import pytesseract
-from pymongo import MongoClient
 import fitz  # PyMuPDF
 from tensorflow.keras.models import load_model
 from tensorflow.keras.preprocessing import image
@@ -15,11 +14,11 @@ import json
 from PyPDF2 import PdfReader, PdfWriter
 import os
 import psycopg2
-from dotenv import load_dotenv
+#from dotenv import load_dotenv
 
-load_dotenv()
+#load_dotenv()
 
-POSTGRESQL_CONNECTION_STRING = os.getenv("POSTGRESQL_CONNECTION_STRING")
+#POSTGRESQL_CONNECTION_STRING = os.getenv("POSTGRESQL_CONNECTION_STRING")
 
 
 def load_vgg16_model():
@@ -142,8 +141,8 @@ def resize_pdf(scan_pdf_bytes, template_pdf_bytes):
 
 
 def get_filenames_and_annotations():
-    connection_string = os.getenv("POSTGRESQL_CONNECTION_STRING")
-    conn = psycopg2.connect(connection_string)
+    #connection_string = os.getenv("POSTGRESQL_CONNECTION_STRING")
+    conn = psycopg2.connect(POSTGRESQL_CONNECTION_STRING)
     cursor = conn.cursor()
     cursor.execute("SELECT pdf_name, annotations FROM annotations")
     documents = cursor.fetchall()
