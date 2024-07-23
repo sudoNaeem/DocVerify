@@ -43,7 +43,7 @@ This file includes utility functions used across the project, including:
 
 3. **Run Streamlit Application:**
    ```sh
-   streamlit run app.py
+   streamlit run pdf_annotator.py
    ```
 
 4. **Run FastAPI Application:**
