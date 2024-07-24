@@ -5,11 +5,11 @@ from PIL import Image
 import numpy as np
 import boto3
 import os
-from dotenv import load_dotenv
+#from dotenv import load_dotenv
 import psycopg2
 import json
 
-load_dotenv()
+#load_dotenv()
 
 
 
@@ -106,6 +106,14 @@ if choice == "Upload PDF":
     if "current_page" not in st.session_state:
         st.session_state.current_page = 0
 
+    def prev_page():
+        if st.session_state.current_page > 0:
+            st.session_state.current_page -= 1
+
+    def next_page(total_pages):
+        if st.session_state.current_page < total_pages - 1:
+            st.session_state.current_page += 1
+
     uploaded_file = st.file_uploader("Upload PDF", type=["pdf"])
     if uploaded_file is not None:
         pdf_name = uploaded_file.name
@@ -178,12 +186,10 @@ if choice == "Upload PDF":
                 st.session_state.annotations[f"page_{page_num}"].extend(unique_annotations)
 
             col1, col2, col3 = st.columns(3)
+            col1.button("Previous Page", on_click=prev_page)
+            col2.button("Next Page", on_click=next_page, args=(total_pages,))
             
-            if col1.button("Previous Page") and st.session_state.current_page > 0:
-                st.session_state.current_page -= 1
 
-            if col2.button("Next Page") and st.session_state.current_page < total_pages - 1:
-                st.session_state.current_page += 1
 
             if col3.button("Save Annotations"):
                 all_boxes = []

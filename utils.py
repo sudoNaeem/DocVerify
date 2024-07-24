@@ -14,9 +14,9 @@ import json
 from PyPDF2 import PdfReader, PdfWriter
 import os
 import psycopg2
-from dotenv import load_dotenv
+#from dotenv import load_dotenv
 
-load_dotenv()
+#load_dotenv()
 
 POSTGRESQL_CONNECTION_STRING = os.getenv("POSTGRESQL_CONNECTION_STRING")
 
