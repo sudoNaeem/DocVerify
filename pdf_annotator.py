@@ -5,18 +5,17 @@ from PIL import Image
 import numpy as np
 import boto3
 import os
-#from dotenv import load_dotenv
+from dotenv import load_dotenv
 import psycopg2
 import json
 
-#load_dotenv()
+load_dotenv()
 
 POSTGRESQL_CONNECTION_STRING = os.getenv("POSTGRESQL_CONNECTION_STRING")
 AWS_ACCESS_KEY_ID = os.getenv("AWS_ACCESS_KEY_ID")
 AWS_SECRET_ACCESS_KEY = os.getenv("AWS_SECRET_ACCESS_KEY")
 S3_BUCKET_NAME = os.getenv("S3_BUCKET_NAME")
 
-@st.cache_resource
 def get_pg_connection():
     pg_conn = psycopg2.connect(POSTGRESQL_CONNECTION_STRING)
     return pg_conn
@@ -29,7 +28,6 @@ def get_s3_client():
         aws_secret_access_key=AWS_SECRET_ACCESS_KEY
     )
 
-pg_conn = get_pg_connection()
 s3_client = get_s3_client()
 
 class PDFManager:
@@ -49,7 +47,7 @@ class PDFManager:
         return pdf_data
 
 class AnnotationManager:
-    def __init__(self):
+    def __init__(self, pg_conn):
         self.pg_conn = pg_conn
 
     def save_annotations(self, pdf_name, annotations):
@@ -85,7 +83,6 @@ class AnnotationManager:
         return unique_annotations
 
 pdf_manager = PDFManager()
-annotation_manager = AnnotationManager()
 
 st.title("PDF Annotator")
 
@@ -99,9 +96,13 @@ uploaded_file = st.file_uploader("Upload PDF", type=["pdf"])
 if uploaded_file is not None:
     pdf_name = uploaded_file.name
 
+    pg_conn = get_pg_connection()
+    annotation_manager = AnnotationManager(pg_conn)
+
     existing_annotations = annotation_manager.retrieve_annotations(pdf_name)
     if existing_annotations:
         st.error(f"The name '{pdf_name}' already exists. Please upload a PDF with a different name.")
+        pg_conn.close()
     else:
         s3_key = pdf_manager.upload_pdf(uploaded_file, pdf_name)
         st.success(f"PDF uploaded to S3 with key '{s3_key}'. Annotations can now be added to '{pdf_name}'.")
@@ -189,6 +190,7 @@ if uploaded_file is not None:
             st.success("Annotations saved.")
             st.write("Annotations saved to database:")
             st.json(result)
+            pg_conn.close()
 
 st.write("Retrieve and Display PDF:")
 
@@ -209,9 +211,13 @@ if st.button("Retrieve PDF"):
 
 annotations_to_retrieve = st.text_input("Enter the name of the PDF to retrieve annotations for")
 if st.button("Retrieve Annotations"):
+    pg_conn = get_pg_connection()
+    annotation_manager = AnnotationManager(pg_conn)
+    
     annotations = annotation_manager.retrieve_annotations(annotations_to_retrieve)
     if annotations:
         st.success(f"Annotations for '{annotations_to_retrieve}'")
         st.json(annotations)
     else:
         st.error(f"No annotations found for '{annotations_to_retrieve}'")
+    pg_conn.close()
