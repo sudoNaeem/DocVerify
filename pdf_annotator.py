@@ -208,28 +208,44 @@ st.write("Retrieve and Display PDF:")
 
 pdf_to_retrieve = st.text_input("Enter the name of the PDF to retrieve")
 if st.button("Retrieve PDF"):
-    pdf_data = pdf_manager.retrieve_pdf(pdf_to_retrieve)
-    if pdf_data:
-        st.success(f"Retrieved and displaying '{pdf_to_retrieve}'")
-        pdf_document = fitz.open(stream=pdf_data, filetype="pdf")
-        pages_images = [(page_num, np.array(Image.frombytes("RGB", [pix.width, pix.height], pix.samples)))
-                        for page_num, page in enumerate(pdf_document)
-                        for pix in [page.get_pixmap()]]
-        for page_num, pdf_image in pages_images:
-            st.write(f"Page {page_num + 1}")
-            st.image(pdf_image)
-    else:
-        st.error(f"No PDF found with the name '{pdf_to_retrieve}'")
+    try:
+        pdf_data = pdf_manager.retrieve_pdf(pdf_to_retrieve)
+        if pdf_data:
+            st.success(f"Retrieved and displaying '{pdf_to_retrieve}'")
+            try:
+                pdf_document = fitz.open(stream=pdf_data, filetype="pdf")
+                pages_images = [(page_num, np.array(Image.frombytes("RGB", [pix.width, pix.height], pix.samples)))
+                                for page_num, page in enumerate(pdf_document)
+                                for pix in [page.get_pixmap()]]
+                for page_num, pdf_image in pages_images:
+                    st.write(f"Page {page_num + 1}")
+                    st.image(pdf_image)
+            except Exception as e:
+                st.error("Failed to process PDF data.")
+                st.error(str(e))
+        else:
+            st.error(f"No PDF found with the name '{pdf_to_retrieve}'")
+    except Exception as e:
+        st.error(str(e))
+
 
 annotations_to_retrieve = st.text_input("Enter the name of the PDF to retrieve annotations for")
 if st.button("Retrieve Annotations"):
-    pg_conn = get_pg_connection()
-    annotation_manager = AnnotationManager(pg_conn)
-    
-    annotations = annotation_manager.retrieve_annotations(annotations_to_retrieve)
-    if annotations:
-        st.success(f"Annotations for '{annotations_to_retrieve}'")
-        st.json(annotations)
-    else:
-        st.error(f"No annotations found for '{annotations_to_retrieve}'")
-    pg_conn.close()
+    try:
+        pg_conn = get_pg_connection()
+        if pg_conn is not None:
+            annotation_manager = AnnotationManager(pg_conn)
+            annotations = annotation_manager.retrieve_annotations(annotations_to_retrieve)
+            if annotations:
+                st.success(f"Annotations for '{annotations_to_retrieve}'")
+                st.json(annotations)
+            else:
+                st.error(f"No annotations found for '{annotations_to_retrieve}'")
+            pg_conn.close()
+        else:
+            st.error("Database connection could not be established.")
+    except Exception as e:
+        st.error("An error occurred while retrieving annotations.")
+        st.error(str(e))
+        if pg_conn is not None:
+            pg_conn.close()
