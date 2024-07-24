@@ -5,11 +5,11 @@ from PIL import Image
 import numpy as np
 import boto3
 import os
-from dotenv import load_dotenv
+#from dotenv import load_dotenv
 import psycopg2
 import json
 
-load_dotenv()
+#load_dotenv()
 
 POSTGRESQL_CONNECTION_STRING = os.getenv("POSTGRESQL_CONNECTION_STRING")
 AWS_ACCESS_KEY_ID = os.getenv("AWS_ACCESS_KEY_ID")
