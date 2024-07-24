@@ -99,6 +99,7 @@ pdf_manager = PDFManager()
 st.title("PDF Annotator")
 st.sidebar.title("PDF Tools")
 choice = st.sidebar.radio("Select an option:", ("Upload PDF", "Retrieve PDF", "Retrieve Annotations"))
+
 if choice == "Upload PDF":
     if "annotations" not in st.session_state:
         st.session_state.annotations = {}
@@ -177,15 +178,24 @@ if choice == "Upload PDF":
 
                 st.session_state.annotations[f"page_{page_num}"].extend(unique_annotations)
 
-            col1, col2, col3 = st.columns(3)
+            col1, col2, col3, col4 = st.columns(4)
             
-            if col1.button("Previous Page") and st.session_state.current_page > 0:
+            if col1.button("Previous Page") and current_page > 0:
                 st.session_state.current_page -= 1
 
-            if col2.button("Next Page") and st.session_state.current_page < total_pages - 1:
+            page_number_input = col2.text_input("Go to Page", value=str(current_page + 1))
+            if col2.button("Go"):
+                try:
+                    page_num_input = int(page_number_input) - 1
+                    if 0 <= page_num_input < total_pages:
+                        st.session_state.current_page = page_num_input
+                except ValueError:
+                    st.error("Invalid page number.")
+
+            if col3.button("Next Page") and current_page < total_pages - 1:
                 st.session_state.current_page += 1
 
-            if col3.button("Save Annotations"):
+            if col4.button("Save Annotations"):
                 all_boxes = []
                 for page, annotations in st.session_state.annotations.items():
                     page_number = int(page.split("_")[1])
@@ -196,7 +206,7 @@ if choice == "Upload PDF":
                 st.write("Annotations saved to database:")
                 st.json(result)
                 pg_conn.close()
-elif choice == "Retrieve PDF":
+elif choice=="Retrieve PDF":
     st.write("Retrieve and Display PDF:")
 
     pdf_to_retrieve = st.text_input("Enter the name of the PDF to retrieve")

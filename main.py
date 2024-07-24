@@ -4,14 +4,14 @@ from contextlib import asynccontextmanager
 import fitz  # PyMuPDF
 import io
 import os
-#from dotenv import load_dotenv
+from dotenv import load_dotenv
 import cv2
 from utils import (
     load_vgg16_model, process_pdf_file, extract_images, compute_vgg16_similarity, resize_pdf, get_filenames_and_annotations, detect_document_words)
 import psycopg2
 import boto3
 
-#load_dotenv()
+load_dotenv()
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
