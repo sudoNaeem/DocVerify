@@ -1,10 +1,9 @@
-import fitz  # PyMuPDF
+import fitz
 import streamlit as st
 from streamlit_drawable_canvas import st_canvas
 from PIL import Image
 import numpy as np
 import boto3
-import io
 import os
 #from dotenv import load_dotenv
 import psycopg2
@@ -20,27 +19,17 @@ S3_BUCKET_NAME = os.getenv("S3_BUCKET_NAME")
 @st.cache_resource
 def get_pg_connection():
     pg_conn = psycopg2.connect(POSTGRESQL_CONNECTION_STRING)
-    pg_cursor = pg_conn.cursor()
-    pg_cursor.execute('''
-        CREATE TABLE IF NOT EXISTS annotations (
-            id SERIAL PRIMARY KEY,
-            pdf_name TEXT,
-            annotations JSONB
-        );
-    ''')
-    pg_conn.commit()
-    return pg_conn, pg_cursor
+    return pg_conn
 
 @st.cache_resource
 def get_s3_client():
-    s3_client = boto3.client(
+    return boto3.client(
         's3',
         aws_access_key_id=AWS_ACCESS_KEY_ID,
         aws_secret_access_key=AWS_SECRET_ACCESS_KEY
     )
-    return s3_client
 
-pg_conn, pg_cursor = get_pg_connection()
+pg_conn = get_pg_connection()
 s3_client = get_s3_client()
 
 class PDFManager:
@@ -62,7 +51,6 @@ class PDFManager:
 class AnnotationManager:
     def __init__(self):
         self.pg_conn = pg_conn
-        self.pg_cursor = pg_cursor
 
     def save_annotations(self, pdf_name, annotations):
         unique_annotations = self.deduplicate_annotations(annotations)
@@ -70,16 +58,18 @@ class AnnotationManager:
             "pdf_name": pdf_name,
             "annotations": unique_annotations
         }
-        self.pg_cursor.execute(
-            "INSERT INTO annotations (pdf_name, annotations) VALUES (%s, %s)",
-            (pdf_name, json.dumps(unique_annotations))
-        )
-        self.pg_conn.commit()
+        with self.pg_conn.cursor() as pg_cursor:
+            pg_cursor.execute(
+                "INSERT INTO annotations (pdf_name, annotations) VALUES (%s, %s)",
+                (pdf_name, json.dumps(unique_annotations))
+            )
+            self.pg_conn.commit()
         return annotation_data
 
     def retrieve_annotations(self, pdf_name):
-        self.pg_cursor.execute("SELECT annotations FROM annotations WHERE pdf_name = %s", (pdf_name,))
-        result = self.pg_cursor.fetchone()
+        with self.pg_conn.cursor() as pg_cursor:
+            pg_cursor.execute("SELECT annotations FROM annotations WHERE pdf_name = %s", (pdf_name,))
+            result = pg_cursor.fetchone()
         if result:
             return result[0] if isinstance(result[0], list) else json.loads(result[0])
         return None
