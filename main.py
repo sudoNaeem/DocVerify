@@ -95,13 +95,11 @@ async def upload_pdfs(filename: str, Scanned: UploadFile = File(...), threshold:
             score = float(compute_vgg16_similarity(img_template, img_scanned))
             is_present = bool(score < threshold)
             ocr_text_scanned = detect_document_words(cv2.imencode('.png', img_scanned)[1].tobytes())
-            ocr_text_template = detect_document_words(cv2.imencode('.png', img_template)[1].tobytes())
             results.append({
                 "pageNumber": annotation["page_number"],
                 "tagId": annotation["label"],
                 "isPresent": is_present,
-                "data_template": ocr_text_template.splitlines(),
-                "data_scanned": ocr_text_scanned.splitlines(),
+                "data": ocr_text_scanned.splitlines(),
             })
         
         return {"data": results}

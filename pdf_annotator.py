@@ -5,11 +5,11 @@ from PIL import Image
 import numpy as np
 import boto3
 import os
-#from dotenv import load_dotenv
+from dotenv import load_dotenv
 import psycopg2
 import json
 
-#load_dotenv()
+load_dotenv()
 
 
 
@@ -132,7 +132,7 @@ if uploaded_file is not None:
         page_num, pdf_image = pages_images[current_page]
         canvas_result = st_canvas(
             fill_color="rgba(255, 0, 0, 0.3)",
-            stroke_width=3,
+            stroke_width=1,
             stroke_color="red",
             background_image=Image.fromarray(pdf_image),
             update_streamlit=True,
