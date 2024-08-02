@@ -17,3 +17,4 @@ google-cloud
 google-cloud-vision
 psycopg2-binary
 boto3
+openai

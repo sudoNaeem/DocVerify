@@ -14,9 +14,9 @@ import json
 from PyPDF2 import PdfReader, PdfWriter
 import os
 import psycopg2
-#from dotenv import load_dotenv
+from dotenv import load_dotenv
 
-#load_dotenv()
+load_dotenv()
 
 POSTGRESQL_CONNECTION_STRING = os.getenv("POSTGRESQL_CONNECTION_STRING")
 
@@ -156,23 +156,70 @@ def get_filenames_and_annotations():
     return results
 
 
-def detect_document_words(image_content):
-    """Detects document words in an image and returns them as a string."""
-    from google.cloud import vision
-    client = vision.ImageAnnotatorClient()
-    image = vision.Image(content=image_content)
-    response = client.document_text_detection(image=image)
-    words = []
+# def detect_document_words(image_content):
+#     """Detects document words in an image and returns them as a string."""
+#     from google.cloud import vision
+#     client = vision.ImageAnnotatorClient()
+#     image = vision.Image(content=image_content)
+#     response = client.document_text_detection(image=image)
+#     words = []
 
-    for page in response.full_text_annotation.pages:
-        for block in page.blocks:
-            for paragraph in block.paragraphs:
-                for word in paragraph.words:
-                    word_text = "".join([symbol.text for symbol in word.symbols])
-                    words.append(word_text)
-    if response.error.message:
-        raise Exception(
-            "{}\nFor more info on error messages, check: "
-            "https://cloud.google.com/apis/design/errors".format(response.error.message)
-        )
-    return " ".join(words)
+#     for page in response.full_text_annotation.pages:
+#         for block in page.blocks:
+#             for paragraph in block.paragraphs:
+#                 for word in paragraph.words:
+#                     word_text = "".join([symbol.text for symbol in word.symbols])
+#                     words.append(word_text)
+#     if response.error.message:
+#         raise Exception(
+#             "{}\nFor more info on error messages, check: "
+#             "https://cloud.google.com/apis/design/errors".format(response.error.message)
+#         )
+#     return " ".join(words)
+
+import base64
+import requests
+
+
+def detect_document_words(image_bytes):
+    api_key = 'sk-proj-kZt7ZuHiBLjxXfHO7gYnT3BlbkFJjVY8GVEboVOUVQdlGgv8'
+    # Function to encode the image
+    def encode_image(image_bytes):
+        return base64.b64encode(image_bytes).decode('utf-8')
+
+    # Getting the base64 string
+    base64_image = encode_image(image_bytes)
+
+    headers = {
+        "Content-Type": "application/json",
+        "Authorization": f"Bearer {api_key}"
+    }
+
+    payload = {
+        "model": "gpt-4o",
+        "messages": [
+            {
+                "role": "user",
+                "content": [
+                    {
+                        "type": "text",
+                        "text": "Extract only the handwritten content in this image, dont give text that is not handwritten, YOU MUST ACT LIKE AN OCR, if there is signature return [signamture] if there is no text or  its blank return [empty] and where there is a checkbox return [checkbox]"
+                    },
+                    {
+                        "type": "image_url",
+                        "image_url": {
+                            "url": f"data:image/png;base64,{base64_image}"
+                        }
+                    }
+                ]
+            }
+        ],
+        "max_tokens": 300
+    }
+
+    response = requests.post("https://api.openai.com/v1/chat/completions", headers=headers, json=payload)
+    response_content = response.json()
+    print(response_content['choices'][0]['message']['content'])
+    return response_content['choices'][0]['message']['content']
+
+
