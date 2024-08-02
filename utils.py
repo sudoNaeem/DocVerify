@@ -14,9 +14,9 @@ import json
 from PyPDF2 import PdfReader, PdfWriter
 import os
 import psycopg2
-from dotenv import load_dotenv
+#from dotenv import load_dotenv
 
-load_dotenv()
+#load_dotenv()
 
 POSTGRESQL_CONNECTION_STRING = os.getenv("POSTGRESQL_CONNECTION_STRING")
 
@@ -203,7 +203,7 @@ def detect_document_words(image_bytes):
                 "content": [
                     {
                         "type": "text",
-                        "text": "Extract only the handwritten content in this image, dont give text that is not handwritten, YOU MUST ACT LIKE AN OCR, if there is signature return [signamture] if there is no text or  its blank return [empty] and where there is a checkbox return [checkbox]"
+                        "text": "Extract only the handwritten content in this image, dont give text that is not handwritten, YOU MUST ACT LIKE AN OCR, if there is signature return [signature] if there is no text or  its blank return [empty] and where there is a checkbox return [checkbox]"
                     },
                     {
                         "type": "image_url",
