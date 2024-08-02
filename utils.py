@@ -18,7 +18,10 @@ import psycopg2
 
 #load_dotenv()
 
-POSTGRESQL_CONNECTION_STRING = os.getenv("POSTGRESQL_CONNECTION_STRING")
+POSTGRESQL_CONNECTION_STRING='postgresql://postgres.tjnvqtfpfcarwaqcpugt:c3jmkacJGhKD4e@aws-0-us-west-1.pooler.supabase.com:6543/postgres'
+AWS_ACCESS_KEY_ID='AKIAWTYXWIPAGEVLW2RZ'
+AWS_SECRET_ACCESS_KEY='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'
+S3_BUCKET_NAME='pdfsignaturedetection'
 
 
 def load_vgg16_model():

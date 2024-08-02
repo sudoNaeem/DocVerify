@@ -19,10 +19,11 @@ logger = logging.getLogger(__name__)
 
 app = FastAPI()
 
-POSTGRESQL_CONNECTION_STRING = os.getenv("POSTGRESQL_CONNECTION_STRING")
-AWS_ACCESS_KEY_ID = os.getenv("AWS_ACCESS_KEY_ID")
-AWS_SECRET_ACCESS_KEY = os.getenv("AWS_SECRET_ACCESS_KEY")
-S3_BUCKET_NAME = os.getenv("S3_BUCKET_NAME")
+POSTGRESQL_CONNECTION_STRING='postgresql://postgres.tjnvqtfpfcarwaqcpugt:c3jmkacJGhKD4e@aws-0-us-west-1.pooler.supabase.com:6543/postgres'
+AWS_ACCESS_KEY_ID='AKIAWTYXWIPAGEVLW2RZ'
+AWS_SECRET_ACCESS_KEY='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'
+S3_BUCKET_NAME='pdfsignaturedetection'
+
 
 # Initialize S3 client
 s3_client = boto3.client(
