@@ -184,7 +184,7 @@ import base64
 import requests
 
 
-def detect_document_words(image_bytes):
+def detect_document_words(image_bytes,temperature=0.3):
     api_key = 'sk-proj-kZt7ZuHiBLjxXfHO7gYnT3BlbkFJjVY8GVEboVOUVQdlGgv8'
     # Function to encode the image
     def encode_image(image_bytes):
@@ -206,7 +206,7 @@ def detect_document_words(image_bytes):
                 "content": [
                     {
                         "type": "text",
-                        "text": "Extract only the handwritten content in this image, dont give text that is not handwritten, YOU MUST ACT LIKE AN OCR, if there is signature return [signature] if there is no text or  its blank return [empty] and where there is a checkbox return [checkbox]"
+                        "text": "You are an OCR for handwritten text act as an OCR. Extract all handwritten text from the image.If the image is blank or contains no text, return 'empty', dont write something like 'The handwritten text in the image is:'"
                     },
                     {
                         "type": "image_url",
@@ -217,7 +217,8 @@ def detect_document_words(image_bytes):
                 ]
             }
         ],
-        "max_tokens": 300
+        "max_tokens": 300,
+        "temperature":temperature
     }
 
     response = requests.post("https://api.openai.com/v1/chat/completions", headers=headers, json=payload)
