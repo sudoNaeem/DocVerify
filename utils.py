@@ -227,3 +227,45 @@ def detect_document_words(image_bytes,temperature=0.3):
     return response_content['choices'][0]['message']['content']
 
 
+
+def detect_checkbox_filled(image_bytes,temperature=0.3):
+    api_key = 'sk-proj-kZt7ZuHiBLjxXfHO7gYnT3BlbkFJjVY8GVEboVOUVQdlGgv8'
+    # Function to encode the image
+    def encode_image(image_bytes):
+        return base64.b64encode(image_bytes).decode('utf-8')
+
+    # Getting the base64 string
+    base64_image = encode_image(image_bytes)
+
+    headers = {
+        "Content-Type": "application/json",
+        "Authorization": f"Bearer {api_key}"
+    }
+
+    payload = {
+        "model": "gpt-4o",
+        "messages": [
+            {
+                "role": "user",
+                "content": [
+                    {
+                        "type": "text",
+                        "text": "Given this checkbox tell if it it is 'marked' or 'not marked. DO not say anything else."
+                    },
+                    {
+                        "type": "image_url",
+                        "image_url": {
+                            "url": f"data:image/png;base64,{base64_image}"
+                        }
+                    }
+                ]
+            }
+        ],
+        "max_tokens": 300,
+        "temperature":temperature
+    }
+
+    response = requests.post("https://api.openai.com/v1/chat/completions", headers=headers, json=payload)
+    response_content = response.json()
+    print(response_content['choices'][0]['message']['content'])
+    return response_content['choices'][0]['message']['content']

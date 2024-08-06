@@ -7,7 +7,7 @@ import os
 #from dotenv import load_dotenv
 import cv2
 from utils import (
-    load_vgg16_model, process_pdf_file, extract_images, compute_vgg16_similarity, resize_pdf, get_filenames_and_annotations, detect_document_words)
+    load_vgg16_model, process_pdf_file, extract_images, compute_vgg16_similarity, resize_pdf, get_filenames_and_annotations, detect_document_words,detect_checkbox_filled)
 import psycopg2
 import boto3
 
@@ -94,13 +94,26 @@ async def upload_pdfs(filename: str, Scanned: UploadFile = File(...), threshold:
         results = []   
         for img_template, img_scanned, annotation in zip(output_images_template, output_images_scanned, annotations_info):
             score = float(compute_vgg16_similarity(img_template, img_scanned))
-            is_present = bool(score < threshold)
-            ocr_text_scanned = detect_document_words(cv2.imencode('.png', img_scanned)[1].tobytes())
+            if annotation["label"].startswith('#'):
+                logger.info("no computating vgg")
+            else:
+                is_present = bool(score < threshold)
+            if annotation["label"].startswith('#'):
+                ocr = detect_checkbox_filled(cv2.imencode('.png', img_scanned)[1].tobytes())
+                if "not" in ocr.lower():
+                    is_present = False
+                    ocr =""
+                else:
+                    is_present = True
+                    ocr =""
+                logger.info("Checking a checkbox")
+            else:
+                ocr = detect_document_words(cv2.imencode('.png', img_scanned)[1].tobytes())
             results.append({
                 "pageNumber": annotation["page_number"],
                 "tagId": annotation["label"],
                 "isPresent": is_present,
-                "data": ocr_text_scanned.splitlines(),
+                "data": ocr.splitlines() if isinstance(ocr, str) else ocr,
             })
         
         return {"data": results}
