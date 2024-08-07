@@ -60,7 +60,7 @@ async def list_templates():
 async def upload_pdfs(filename: str,
                     Scanned: UploadFile = File(...),
                     Threshold: float = 0.5,
-                    Deskewing: bool = Query(False, description="To Deskew Scanned PDFS, it might increase Computing Time")):
+                    Deskewing: bool = Query(False, description="To Deskew Scanned PDFS, it will increase Computing Time")):
     start_time = datetime.now()
 
     if not Scanned.filename.endswith('.pdf'):
