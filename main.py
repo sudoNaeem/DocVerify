@@ -1,19 +1,17 @@
 import logging
-from fastapi import FastAPI, HTTPException, File, UploadFile
+from fastapi import FastAPI, HTTPException, File, UploadFile,Query
 from contextlib import asynccontextmanager
 import fitz  # PyMuPDF
 import io
 import os
-#from dotenv import load_dotenv
+from datetime import datetime
 import cv2
 from utils import (
     load_vgg16_model, process_pdf_file, extract_images, compute_vgg16_similarity, resize_pdf, get_filenames_and_annotations, detect_document_words,detect_checkbox_filled)
 import psycopg2
 import boto3
 
-#load_dotenv()
 
-# Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
@@ -41,6 +39,7 @@ app = FastAPI(lifespan=lifespan)
 
 @app.get("/list_templates/", operation_id="List_Templates")
 async def list_templates():
+    start_time = datetime.now()
     try:
         conn = psycopg2.connect(POSTGRESQL_CONNECTION_STRING)
         cursor = conn.cursor()
@@ -53,12 +52,20 @@ async def list_templates():
     except Exception as e:
         logger.error(f"Error listing templates: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        end_time = datetime.now()
+        logger.info(f"Time taken to list templates: {end_time - start_time}")
 
 @app.post("/SignatureDetection/")
-async def upload_pdfs(filename: str, Scanned: UploadFile = File(...), threshold: float = 0.5):
+async def upload_pdfs(filename: str,
+                    Scanned: UploadFile = File(...),
+                    Threshold: float = 0.5,
+                    Deskewing: bool = Query(False, description="To Deskew Scanned PDFS, it might increase Computing Time")):
+    start_time = datetime.now()
+
     if not Scanned.filename.endswith('.pdf'):
         raise HTTPException(status_code=400, detail="Invalid file format. Please upload a PDF file.")
-    if not (0 <= threshold <= 1):
+    if not (0 <= Threshold <= 1):
         raise HTTPException(status_code=400, detail="Threshold must be between 0 and 1.")
 
     try:
@@ -83,21 +90,34 @@ async def upload_pdfs(filename: str, Scanned: UploadFile = File(...), threshold:
         except Exception as e:
             logger.error(f"Error retrieving template file '{filename}' from S3: {str(e)}")
             raise HTTPException(status_code=500, detail=f"Error retrieving template file '{filename}' from S3: {str(e)}")
+        
+        retrieval_end_time = datetime.now()
+        logger.info(f"Time taken to retrieve template: {retrieval_end_time - start_time}")
 
-        processed_scanned_buffer = process_pdf_file(scanned_bytes)
-        resized_scanned_buffer = resize_pdf(processed_scanned_buffer.getvalue(), template_bytes)
+        if Deskewing:
+            processed_scanned_buffer = process_pdf_file(scanned_bytes)
+            resized_scanned_buffer = resize_pdf(processed_scanned_buffer.getvalue(), template_bytes)
+        else: 
+            resized_scanned_buffer = resize_pdf(scanned_bytes, template_bytes)
+
+        resize_end_time = datetime.now()
+        logger.info(f"Time taken to resize PDFs + Deskewing: {resize_end_time - retrieval_end_time}")
+
         doc_template = fitz.open(stream=template_bytes, filetype="pdf")
         doc_scanned = fitz.open(stream=resized_scanned_buffer.getvalue(), filetype="pdf")
         output_images_template = extract_images(doc_template, annotations_info)
         output_images_scanned = extract_images(doc_scanned, annotations_info)
         
+        extraction_end_time = datetime.now()
+        logger.info(f"Time taken to extract images: {extraction_end_time - resize_end_time}")
+
         results = []   
         for img_template, img_scanned, annotation in zip(output_images_template, output_images_scanned, annotations_info):
             score = float(compute_vgg16_similarity(img_template, img_scanned))
             if annotation["label"].startswith('#'):
                 logger.info("no computating vgg")
             else:
-                is_present = bool(score < threshold)
+                is_present = bool(score < Threshold)
             if annotation["label"].startswith('#'):
                 ocr = detect_checkbox_filled(cv2.imencode('.png', img_scanned)[1].tobytes())
                 if "not" in ocr.lower():
@@ -115,7 +135,9 @@ async def upload_pdfs(filename: str, Scanned: UploadFile = File(...), threshold:
                 "isPresent": is_present,
                 "data": ocr.splitlines() if isinstance(ocr, str) else ocr,
             })
-        
+        end_time = datetime.now()
+        logger.info(f"Total time taken for signature detection: {end_time - start_time}")
+
         return {"data": results}
     except Exception as e:
         logger.error(f"Error during signature detection: {str(e)}")

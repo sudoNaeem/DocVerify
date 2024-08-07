@@ -11,12 +11,11 @@ from tensorflow.keras.preprocessing import image
 from tensorflow.keras.applications.vgg16 import preprocess_input
 from io import BytesIO
 import json
+from decimal import Decimal
 from PyPDF2 import PdfReader, PdfWriter
 import os
 import psycopg2
-#from dotenv import load_dotenv
 
-#load_dotenv()
 
 POSTGRESQL_CONNECTION_STRING='postgresql://postgres.tjnvqtfpfcarwaqcpugt:c3jmkacJGhKD4e@aws-0-us-west-1.pooler.supabase.com:6543/postgres'
 AWS_ACCESS_KEY_ID='AKIAWTYXWIPAGEVLW2RZ'
@@ -123,14 +122,38 @@ def compute_vgg16_similarity(img1, img2):
     f1, f2 = get_features(img1), get_features(img2)
     return np.dot(f1, f2) / (np.linalg.norm(f1) * np.linalg.norm(f2))
 
+# def resize_pdf(scan_pdf_bytes, template_pdf_bytes):
+#     scan_reader = PdfReader(BytesIO(scan_pdf_bytes))
+#     template_reader = PdfReader(BytesIO(template_pdf_bytes))
+#     scan_writer = PdfWriter()
+
+#     template_page = template_reader.pages[0]
+#     template_page_width = template_page.mediabox.width
+#     template_page_height = template_page.mediabox.height
+
+#     for page_num in range(len(scan_reader.pages)):
+#         scan_page = scan_reader.pages[page_num]
+#         scan_page.scale_to(template_page_width, template_page_height)
+#         scan_writer.add_page(scan_page)
+
+#     output_buffer = BytesIO()
+#     scan_writer.write(output_buffer)
+#     output_buffer.seek(0)
+#     return output_buffer
+
+def to_float(value):
+    if isinstance(value, Decimal):
+        return float(value)
+    return value
+
 def resize_pdf(scan_pdf_bytes, template_pdf_bytes):
     scan_reader = PdfReader(BytesIO(scan_pdf_bytes))
     template_reader = PdfReader(BytesIO(template_pdf_bytes))
     scan_writer = PdfWriter()
 
     template_page = template_reader.pages[0]
-    template_page_width = template_page.mediabox.width
-    template_page_height = template_page.mediabox.height
+    template_page_width = to_float(template_page.mediabox.width)
+    template_page_height = to_float(template_page.mediabox.height)
 
     for page_num in range(len(scan_reader.pages)):
         scan_page = scan_reader.pages[page_num]
