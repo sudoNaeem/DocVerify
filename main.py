@@ -3,11 +3,12 @@ from fastapi import FastAPI, HTTPException, File, UploadFile,Query
 from contextlib import asynccontextmanager
 import fitz  # PyMuPDF
 import io
+from PIL import Image
 import os
 from datetime import datetime
 import cv2
 from utils import (
-    load_vgg16_model, process_pdf_file, extract_images, compute_vgg16_similarity, resize_pdf, get_filenames_and_annotations, detect_document_words,detect_checkbox_filled)
+    load_vgg16_model, process_pdf_file, extract_images, resize_pdf, get_filenames_and_annotations, detect_document_words,detect_checkbox_filled,detect_new_text)
 import psycopg2
 import boto3
 
@@ -59,14 +60,13 @@ async def list_templates():
 @app.post("/SignatureDetection/")
 async def upload_pdfs(filename: str,
                     Scanned: UploadFile = File(...),
-                    Threshold: float = 0.5,
                     Deskewing: bool = Query(False, description="To Deskew Scanned PDFS, it will increase Computing Time")):
     start_time = datetime.now()
 
     if not Scanned.filename.endswith('.pdf'):
         raise HTTPException(status_code=400, detail="Invalid file format. Please upload a PDF file.")
-    if not (0 <= Threshold <= 1):
-        raise HTTPException(status_code=400, detail="Threshold must be between 0 and 1.")
+    # if not (0 <= Threshold <= 1):
+    #     raise HTTPException(status_code=400, detail="Threshold must be between 0 and 1.")
 
     try:
         scanned_bytes = await Scanned.read()
@@ -113,11 +113,15 @@ async def upload_pdfs(filename: str,
 
         results = []   
         for img_template, img_scanned, annotation in zip(output_images_template, output_images_scanned, annotations_info):
-            score = float(compute_vgg16_similarity(img_template, img_scanned))
+            #score = float(compute_vgg16_similarity(img_template, img_scanned))
             if annotation["label"].startswith('#'):
                 logger.info("no computating vgg")
             else:
-                is_present = bool(score < Threshold)
+                img_template_pil = Image.fromarray(img_template)
+                img_scanned_pil = Image.fromarray(img_scanned)
+                is_present = detect_new_text(img_template_pil,img_scanned_pil)
+                print(is_present)
+                
             if annotation["label"].startswith('#'):
                 ocr = detect_checkbox_filled(cv2.imencode('.png', img_scanned)[1].tobytes())
                 if "not" in ocr.lower():

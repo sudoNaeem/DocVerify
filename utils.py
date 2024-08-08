@@ -111,16 +111,16 @@ def extract_images(doc, annotations_info):
         output_images.append(img)
     return output_images
 
-def compute_vgg16_similarity(img1, img2):
-    def get_features(img):
-        img = cv2.resize(img, (224, 224))
-        img = image.img_to_array(img)
-        img = np.expand_dims(img, axis=0)
-        img = preprocess_input(img)
-        return vgg16_model.predict(img).flatten()
+# def compute_vgg16_similarity(img1, img2):
+#     def get_features(img):
+#         img = cv2.resize(img, (224, 224))
+#         img = image.img_to_array(img)
+#         img = np.expand_dims(img, axis=0)
+#         img = preprocess_input(img)
+#         return vgg16_model.predict(img).flatten()
 
-    f1, f2 = get_features(img1), get_features(img2)
-    return np.dot(f1, f2) / (np.linalg.norm(f1) * np.linalg.norm(f2))
+#     f1, f2 = get_features(img1), get_features(img2)
+#     return np.dot(f1, f2) / (np.linalg.norm(f1) * np.linalg.norm(f2))
 
 # def resize_pdf(scan_pdf_bytes, template_pdf_bytes):
 #     scan_reader = PdfReader(BytesIO(scan_pdf_bytes))
@@ -208,7 +208,7 @@ import requests
 
 
 def detect_document_words(image_bytes,temperature=0.3):
-    api_key = 'sk-proj-kZt7ZuHiBLjxXfHO7gYnT3BlbkFJjVY8GVEboVOUVQdlGgv8'
+    api_key = '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'
     # Function to encode the image
     def encode_image(image_bytes):
         return base64.b64encode(image_bytes).decode('utf-8')
@@ -251,8 +251,8 @@ def detect_document_words(image_bytes,temperature=0.3):
 
 
 
-def detect_checkbox_filled(image_bytes,temperature=0.3):
-    api_key = 'sk-proj-kZt7ZuHiBLjxXfHO7gYnT3BlbkFJjVY8GVEboVOUVQdlGgv8'
+def detect_checkbox_filled(image_bytes,temperature=0.01):
+    api_key = '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'
     # Function to encode the image
     def encode_image(image_bytes):
         return base64.b64encode(image_bytes).decode('utf-8')
@@ -292,3 +292,55 @@ def detect_checkbox_filled(image_bytes,temperature=0.3):
     response_content = response.json()
     print(response_content['choices'][0]['message']['content'])
     return response_content['choices'][0]['message']['content']
+
+
+
+def detect_new_text(image1, image2, temperature=0.01):
+    api_key = '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'
+    
+    def encode_image(image):
+        buffered = BytesIO()
+        image.save(buffered, format="PNG")
+        return base64.b64encode(buffered.getvalue()).decode('utf-8')
+
+    base64_image1 = encode_image(image1)
+    base64_image2 = encode_image(image2)
+
+    headers = {
+        "Content-Type": "application/json",
+        "Authorization": f"Bearer {api_key}"
+    }
+
+    payload = {
+        "model": "gpt-4o",
+        "messages": [
+            {
+                "role": "user",
+                "content": [
+                    {
+                        "type": "text",
+                        "text": "Given these two images, identify any text present in the second image that is not in the first image. If there is any new text, return 'True', otherwise return 'False'. Do not say Anything else"
+                    },
+                    {
+                        "type": "image_url",
+                        "image_url": {
+                            "url": f"data:image/png;base64,{base64_image1}"
+                        }
+                    },
+                    {
+                        "type": "image_url",
+                        "image_url": {
+                            "url": f"data:image/png;base64,{base64_image2}"
+                        }
+                    }
+                ]
+            }
+        ],
+        "max_tokens": 300,
+        "temperature": temperature
+    }
+
+    response = requests.post("https://api.openai.com/v1/chat/completions", headers=headers, json=payload)
+    response_content = response.json()
+    result = response_content['choices'][0]['message']['content'].strip().lower()
+    return result == 'true'
