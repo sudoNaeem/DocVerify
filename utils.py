@@ -222,7 +222,7 @@ def extract_text(param_type, image_bytes, temperature=0.7):
             "Name": ['empty', 'unknown', '', 'no name detected', 'name not found'],
             "Date": ['empty', 'unknown', '', 'no date detected', 'date not found'],
             "Signature": ['empty', 'unknown', '', 'no signature detected', 'signature not found'],
-            "Checkbox": ['empty', 'unknown', '', 'not marked', 'marked', 'no checkbox detected'],
+            "Checkbox": ['empty', 'unknown', '', 'not marked', 'no checkbox detected'],
             "Text": ['empty', 'unknown', '', 'no text detected', 'text not found']
         }
 
