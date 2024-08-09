@@ -124,7 +124,7 @@ async def upload_pdfs(filename: str,
                 logger.info("Checking a checkbox")
             else:
                 ocr = detect_document_words(cv2.imencode('.png', img_scanned)[1].tobytes())
-                if ocr.contains('empty'):
+                if ocr.find('empty')!=-1:
                     is_present=False
                 else:
                     is_present=True
