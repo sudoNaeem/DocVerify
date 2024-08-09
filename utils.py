@@ -229,7 +229,8 @@ def detect_document_words(image_bytes,temperature=0.3):
                 "content": [
                     {
                         "type": "text",
-                        "text": "You are an OCR for handwritten text act as an OCR. Extract all handwritten text from the image.If the image is blank or contains no text, return 'empty', dont write something like 'The handwritten text in the image is:'"
+                        "text": """You are an OCR for handwritten text act as an OCR. Extract all handwritten text from the image.If the image is blank or contains no text, return 'empty', dont write something like 'The handwritten text in the image is:'
+                                Give exact text that you detect do not try to guess what the word is give what it is."""
                     },
                     {
                         "type": "image_url",
@@ -295,7 +296,7 @@ def detect_checkbox_filled(image_bytes,temperature=0.01):
 
 
 
-def detect_new_text(image1, image2, temperature=0.01):
+def detect_new_text(image1, image2, temperature=0.00001):
     api_key = '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'
     
     def encode_image(image):

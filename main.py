@@ -119,7 +119,10 @@ async def upload_pdfs(filename: str,
             else:
                 img_template_pil = Image.fromarray(img_template)
                 img_scanned_pil = Image.fromarray(img_scanned)
-                is_present = detect_new_text(img_template_pil,img_scanned_pil)
+                if not annotation['label'].startswith('v'):
+                    is_present = detect_new_text(img_template_pil,img_scanned_pil)
+                else:
+                    is_present=True
                 print(is_present)
                 
             if annotation["label"].startswith('#'):
