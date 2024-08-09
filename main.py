@@ -59,6 +59,7 @@ async def list_templates():
 
 @app.post("/SignatureDetection/")
 async def upload_pdfs(filename: str,
+                      Type: str,
                     Scanned: UploadFile = File(...),
                     Deskewing: bool = Query(False, description="To Deskew Scanned PDFS, it will increase Computing Time")):
     start_time = datetime.now()

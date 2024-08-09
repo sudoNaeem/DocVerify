@@ -207,7 +207,7 @@ import base64
 import requests
 
 
-def detect_document_words(image_bytes,temperature=0.3):
+def detect_document_words(image_bytes,temperature=0.001):
     api_key = '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'
     # Function to encode the image
     def encode_image(image_bytes):
@@ -220,7 +220,6 @@ def detect_document_words(image_bytes,temperature=0.3):
         "Content-Type": "application/json",
         "Authorization": f"Bearer {api_key}"
     }
-
     payload = {
         "model": "gpt-4o",
         "messages": [
@@ -230,7 +229,7 @@ def detect_document_words(image_bytes,temperature=0.3):
                     {
                         "type": "text",
                         "text": """You are an OCR for handwritten text act as an OCR. Extract all handwritten text from the image.If the image is blank or contains no text, return 'empty', dont write something like 'The handwritten text in the image is:'
-                                Give exact text that you detect do not try to guess what the word is give what it is."""
+                                Give exact text that you detect do not try to guess what the word is give what it is.Keep in mind the following image contains a date if it does."""
                     },
                     {
                         "type": "image_url",
@@ -320,7 +319,7 @@ def detect_new_text(image1, image2, temperature=0.00001):
                 "content": [
                     {
                         "type": "text",
-                        "text": "Given these two images, identify any text present in the second image that is not in the first image. If there is any new text, return 'True', otherwise return 'False'. Do not say Anything else"
+                        "text": "Given these two images, identify any text present in the second image that is not in the first image. If there is any new text, return 'True', otherwise return 'False'. Do not say Anything else. Keep in mind the following image contains a date if it does."
                     },
                     {
                         "type": "image_url",
