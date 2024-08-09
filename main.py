@@ -8,7 +8,7 @@ import os
 from datetime import datetime
 import cv2
 from utils import (
-    load_vgg16_model, process_pdf_file, extract_images, resize_pdf, get_filenames_and_annotations, detect_document_words,detect_checkbox_filled,detect_new_text)
+     process_pdf_file, extract_images, resize_pdf, get_filenames_and_annotations, detect_document_words,detect_checkbox_filled)
 import psycopg2
 import boto3
 
@@ -31,12 +31,9 @@ s3_client = boto3.client(
     aws_secret_access_key=AWS_SECRET_ACCESS_KEY
 )
 
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    load_vgg16_model()
-    yield
 
-app = FastAPI(lifespan=lifespan)
+
+app = FastAPI()
 
 @app.get("/list_templates/", operation_id="List_Templates")
 async def list_templates():
@@ -59,7 +56,6 @@ async def list_templates():
 
 @app.post("/SignatureDetection/")
 async def upload_pdfs(filename: str,
-                      Type: str,
                     Scanned: UploadFile = File(...),
                     Deskewing: bool = Query(False, description="To Deskew Scanned PDFS, it will increase Computing Time")):
     start_time = datetime.now()
@@ -117,15 +113,6 @@ async def upload_pdfs(filename: str,
             #score = float(compute_vgg16_similarity(img_template, img_scanned))
             if annotation["label"].startswith('#'):
                 logger.info("no computating vgg")
-            else:
-                img_template_pil = Image.fromarray(img_template)
-                img_scanned_pil = Image.fromarray(img_scanned)
-                if not annotation['label'].startswith('v'):
-                    is_present = detect_new_text(img_template_pil,img_scanned_pil)
-                else:
-                    is_present=True
-                print(is_present)
-                
             if annotation["label"].startswith('#'):
                 ocr = detect_checkbox_filled(cv2.imencode('.png', img_scanned)[1].tobytes())
                 if "not" in ocr.lower():
@@ -137,6 +124,10 @@ async def upload_pdfs(filename: str,
                 logger.info("Checking a checkbox")
             else:
                 ocr = detect_document_words(cv2.imencode('.png', img_scanned)[1].tobytes())
+                if ocr.contains('empty'):
+                    is_present=False
+                else:
+                    is_present=True
             results.append({
                 "pageNumber": annotation["page_number"],
                 "tagId": annotation["label"],

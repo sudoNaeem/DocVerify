@@ -228,8 +228,8 @@ def detect_document_words(image_bytes,temperature=0.001):
                 "content": [
                     {
                         "type": "text",
-                        "text": """You are an OCR for handwritten text act as an OCR. Extract all handwritten text from the image.If the image is blank or contains no text, return 'empty', dont write something like 'The handwritten text in the image is:'
-                                Give exact text that you detect do not try to guess what the word is give what it is.Keep in mind the following image contains a date if it does."""
+                        "text": """You are an OCR for handwritten text act as an OCR. Extract all handwritten text from the image.If the image is blank or contains no text, return 'empty' if it contains a text you can not understand (badly written words, signatures) return 'unknown', dont write something like 'The handwritten text in the image is:'
+                                Give exact text that you detect do not try to guess what the word is give what it is."""
                     },
                     {
                         "type": "image_url",
@@ -251,7 +251,7 @@ def detect_document_words(image_bytes,temperature=0.001):
 
 
 
-def detect_checkbox_filled(image_bytes,temperature=0.01):
+def detect_checkbox_filled(image_bytes,temperature=0.0001):
     api_key = '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'
     # Function to encode the image
     def encode_image(image_bytes):
@@ -273,7 +273,7 @@ def detect_checkbox_filled(image_bytes,temperature=0.01):
                 "content": [
                     {
                         "type": "text",
-                        "text": "Given this checkbox tell if it it is 'marked' or 'not marked. DO not say anything else."
+                        "text": "Given this checkbox tell if it it is 'marked' or 'not marked'. DO not say anything else."
                     },
                     {
                         "type": "image_url",
@@ -295,52 +295,52 @@ def detect_checkbox_filled(image_bytes,temperature=0.01):
 
 
 
-def detect_new_text(image1, image2, temperature=0.00001):
-    api_key = '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'
+# def detect_new_text(image1, image2, temperature=0.00001):
+#     api_key = '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'
     
-    def encode_image(image):
-        buffered = BytesIO()
-        image.save(buffered, format="PNG")
-        return base64.b64encode(buffered.getvalue()).decode('utf-8')
+#     def encode_image(image):
+#         buffered = BytesIO()
+#         image.save(buffered, format="PNG")
+#         return base64.b64encode(buffered.getvalue()).decode('utf-8')
 
-    base64_image1 = encode_image(image1)
-    base64_image2 = encode_image(image2)
+#     base64_image1 = encode_image(image1)
+#     base64_image2 = encode_image(image2)
 
-    headers = {
-        "Content-Type": "application/json",
-        "Authorization": f"Bearer {api_key}"
-    }
+#     headers = {
+#         "Content-Type": "application/json",
+#         "Authorization": f"Bearer {api_key}"
+#     }
 
-    payload = {
-        "model": "gpt-4o",
-        "messages": [
-            {
-                "role": "user",
-                "content": [
-                    {
-                        "type": "text",
-                        "text": "Given these two images, identify any text present in the second image that is not in the first image. If there is any new text, return 'True', otherwise return 'False'. Do not say Anything else. Keep in mind the following image contains a date if it does."
-                    },
-                    {
-                        "type": "image_url",
-                        "image_url": {
-                            "url": f"data:image/png;base64,{base64_image1}"
-                        }
-                    },
-                    {
-                        "type": "image_url",
-                        "image_url": {
-                            "url": f"data:image/png;base64,{base64_image2}"
-                        }
-                    }
-                ]
-            }
-        ],
-        "max_tokens": 300,
-        "temperature": temperature
-    }
+#     payload = {
+#         "model": "gpt-4o",
+#         "messages": [
+#             {
+#                 "role": "user",
+#                 "content": [
+#                     {
+#                         "type": "text",
+#                         "text": "Given these two images, identify any text present in the second image that is not in the first image. If there is any new text, return 'True', otherwise return 'False'. Do not say Anything else. Keep in mind the following image contains a date if it does."
+#                     },
+#                     {
+#                         "type": "image_url",
+#                         "image_url": {
+#                             "url": f"data:image/png;base64,{base64_image1}"
+#                         }
+#                     },
+#                     {
+#                         "type": "image_url",
+#                         "image_url": {
+#                             "url": f"data:image/png;base64,{base64_image2}"
+#                         }
+#                     }
+#                 ]
+#             }
+#         ],
+#         "max_tokens": 300,
+#         "temperature": temperature
+#     }
 
-    response = requests.post("https://api.openai.com/v1/chat/completions", headers=headers, json=payload)
-    response_content = response.json()
-    result = response_content['choices'][0]['message']['content'].strip().lower()
-    return result == 'true'
+    # response = requests.post("https://api.openai.com/v1/chat/completions", headers=headers, json=payload)
+    # response_content = response.json()
+    # result = response_content['choices'][0]['message']['content'].strip().lower()
+    # return result == 'true'
