@@ -160,30 +160,30 @@ def extract_text(param_type, image_bytes, temperature=0.7):
                 "Name": """You are an OCR for handwritten Names. Extract all handwritten names from the image.\n 
                             Example: If the image contains 'John Doe', return 'John Doe'.\n
                             If no name is detected, return 'no name detected'.\n
-                            Remove punctuation in output.
+                            DONT ADD PUNCTUATION IN OUTPUT and Don't write 'the name is: ' .\n
                             Give the exact name that you detect, do not try to guess. Give only handwritten names.""",
                 
                 "Date": """You are an OCR for handwritten Dates. Extract all handwritten dates from the image.\n
                             Example: If the image contains '12/05/2023', return '12/05/2023'.\n
                             If no date is detected, return 'no date detected'.\n
-                            Remove punctuation in output.
+                            and Don't write 'the date is: '\n
                             Give the exact date that you detect, do not try to guess. Give only handwritten dates.""",
                 
                 "Signature": """You are an OCR for signatures. Detect the signatures from the image.\n
                                 If no signature is detected, return 'no signature detected'.\n
-                                Remove punctuation in output.
+                                DONT ADD PUNCTUATION IN OUTPUT and Don't write 'the signature is: '.\n
                                 If you detect a signature return 'signature'.""",
                 
                 "Checkbox": """You are an OCR for detecting checkboxes. Determine if the checkbox is 'marked' or 'not marked'.\n
                                 Example: If the checkbox is checked, return 'marked'. If not checked, return 'not marked'.\n
-                                Remove punctuation in output.
+                                DONT ADD PUNCTUATION IN OUTPUT.\n
                                 If no checkbox is detected, return 'no checkbox detected'.\n
                                 Do not say anything else.""",
                 
                 "Text": """You are an OCR for handwritten text. Extract all handwritten text from the image.\n
                         Example: If the image contains 'Hello World', return 'Hello World'.\n
                         If no text is detected, return 'no text detected'.\n
-                        Remove punctuation in output.
+                        DONT ADD PUNCTUATION IN OUTPUT and Don't write 'the Text is: '\n
                         Give the exact text that you detect, do not try to guess what the word is. Give only handwritten text."""
             }
 
