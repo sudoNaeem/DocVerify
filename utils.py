@@ -5,10 +5,9 @@ from pdf2image import convert_from_bytes
 from scipy.ndimage import rotate
 from PIL import Image
 import pytesseract
+import base64
+import requests
 import fitz  # PyMuPDF
-from tensorflow.keras.models import load_model
-from tensorflow.keras.preprocessing import image
-from tensorflow.keras.applications.vgg16 import preprocess_input
 from io import BytesIO
 import json
 from decimal import Decimal
@@ -21,13 +20,6 @@ POSTGRESQL_CONNECTION_STRING='postgresql://postgres.tjnvqtfpfcarwaqcpugt:c3jmkac
 AWS_ACCESS_KEY_ID='AKIAWTYXWIPAGEVLW2RZ'
 AWS_SECRET_ACCESS_KEY='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'
 S3_BUCKET_NAME='pdfsignaturedetection'
-
-
-def load_vgg16_model():
-    global vgg16_model
-    current_directory = os.getcwd()
-    model_path = os.path.join(current_directory, 'vgg16_model.keras')
-    vgg16_model = load_model(model_path)
 
 
 def correct_skew(image, delta=1, limit=12):
@@ -111,36 +103,6 @@ def extract_images(doc, annotations_info):
         output_images.append(img)
     return output_images
 
-# def compute_vgg16_similarity(img1, img2):
-#     def get_features(img):
-#         img = cv2.resize(img, (224, 224))
-#         img = image.img_to_array(img)
-#         img = np.expand_dims(img, axis=0)
-#         img = preprocess_input(img)
-#         return vgg16_model.predict(img).flatten()
-
-#     f1, f2 = get_features(img1), get_features(img2)
-#     return np.dot(f1, f2) / (np.linalg.norm(f1) * np.linalg.norm(f2))
-
-# def resize_pdf(scan_pdf_bytes, template_pdf_bytes):
-#     scan_reader = PdfReader(BytesIO(scan_pdf_bytes))
-#     template_reader = PdfReader(BytesIO(template_pdf_bytes))
-#     scan_writer = PdfWriter()
-
-#     template_page = template_reader.pages[0]
-#     template_page_width = template_page.mediabox.width
-#     template_page_height = template_page.mediabox.height
-
-#     for page_num in range(len(scan_reader.pages)):
-#         scan_page = scan_reader.pages[page_num]
-#         scan_page.scale_to(template_page_width, template_page_height)
-#         scan_writer.add_page(scan_page)
-
-#     output_buffer = BytesIO()
-#     scan_writer.write(output_buffer)
-#     output_buffer.seek(0)
-#     return output_buffer
-
 def to_float(value):
     if isinstance(value, Decimal):
         return float(value)
@@ -182,169 +144,94 @@ def get_filenames_and_annotations():
     return results
 
 
-# def detect_document_words(image_content):
-#     """Detects document words in an image and returns them as a string."""
-#     from google.cloud import vision
-#     client = vision.ImageAnnotatorClient()
-#     image = vision.Image(content=image_content)
-#     response = client.document_text_detection(image=image)
-#     words = []
+def extract_text(param_type, image_bytes, temperature=0.7):
+        api_key = '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'
+        def encode_image(image_bytes):
+            return base64.b64encode(image_bytes).decode('utf-8')
+        
+        base64_image = encode_image(image_bytes)
 
-#     for page in response.full_text_annotation.pages:
-#         for block in page.blocks:
-#             for paragraph in block.paragraphs:
-#                 for word in paragraph.words:
-#                     word_text = "".join([symbol.text for symbol in word.symbols])
-#                     words.append(word_text)
-#     if response.error.message:
-#         raise Exception(
-#             "{}\nFor more info on error messages, check: "
-#             "https://cloud.google.com/apis/design/errors".format(response.error.message)
-#         )
-#     return " ".join(words)
+        headers = {
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {api_key}"
+        }
 
-import base64
-import requests
-
-
-def detect_document_words(image_bytes,temperature=0.001):
-    api_key = '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'
-    # Function to encode the image
-    def encode_image(image_bytes):
-        return base64.b64encode(image_bytes).decode('utf-8')
-
-    # Getting the base64 string
-    base64_image = encode_image(image_bytes)
-
-    headers = {
-        "Content-Type": "application/json",
-        "Authorization": f"Bearer {api_key}"
-    }
-    payload = {
-        "model": "gpt-4o",
-        "messages": [
-            {
-                "role": "user",
-                "content": [
-                    {
-                        "type": "text",
-                        "text": """You are an OCR for handwritten text act as an OCR. Extract all handwritten text from the image. \n
-                                If the image is blank or contains no text, return 'empty'.\n
-                                If it contains a text you can not understand (badly written words, signatures) return 'unknown'. \n
-                                Dont write something like 'The handwritten text in the image is:'\n
-                                Give exact text that you detect do not try to guess what the word is give what it is.\n
-                                give only handwritten text."""
-                    },
-                    {
-                        "type": "image_url",
-                        "image_url": {
-                            "url": f"data:image/png;base64,{base64_image}"
-                        }
-                    }
-                ]
+        prompts = {
+                "Name": """You are an OCR for handwritten Names. Extract all handwritten names from the image.\n 
+                            Example: If the image contains 'John Doe', return 'John Doe'.\n
+                            If no name is detected, return 'no name detected'.\n
+                            Remove punctuation in output.
+                            Give the exact name that you detect, do not try to guess. Give only handwritten names.""",
+                
+                "Date": """You are an OCR for handwritten Dates. Extract all handwritten dates from the image.\n
+                            Example: If the image contains '12/05/2023', return '12/05/2023'.\n
+                            If no date is detected, return 'no date detected'.\n
+                            Remove punctuation in output.
+                            Give the exact date that you detect, do not try to guess. Give only handwritten dates.""",
+                
+                "Signature": """You are an OCR for signatures. Detect the signatures from the image.\n
+                                If no signature is detected, return 'no signature detected'.\n
+                                Remove punctuation in output.
+                                If you detect a signature return 'signature'.""",
+                
+                "Checkbox": """You are an OCR for detecting checkboxes. Determine if the checkbox is 'marked' or 'not marked'.\n
+                                Example: If the checkbox is checked, return 'marked'. If not checked, return 'not marked'.\n
+                                Remove punctuation in output.
+                                If no checkbox is detected, return 'no checkbox detected'.\n
+                                Do not say anything else.""",
+                
+                "Text": """You are an OCR for handwritten text. Extract all handwritten text from the image.\n
+                        Example: If the image contains 'Hello World', return 'Hello World'.\n
+                        If no text is detected, return 'no text detected'.\n
+                        Remove punctuation in output.
+                        Give the exact text that you detect, do not try to guess what the word is. Give only handwritten text."""
             }
-        ],
-        "max_tokens": 300,
-        "temperature":temperature
-    }
 
-    response = requests.post("https://api.openai.com/v1/chat/completions", headers=headers, json=payload)
-    response_content = response.json()
-    print(response_content['choices'][0]['message']['content'])
-    return response_content['choices'][0]['message']['content']
+        if param_type not in prompts:
+            raise ValueError(f"Invalid param_type '{param_type}'. Must be one of {list(prompts.keys())}.")
+        selected_prompt = prompts[param_type]
 
-
-
-def detect_checkbox_filled(image_bytes,temperature=0.0001):
-    api_key = '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'
-    # Function to encode the image
-    def encode_image(image_bytes):
-        return base64.b64encode(image_bytes).decode('utf-8')
-
-    # Getting the base64 string
-    base64_image = encode_image(image_bytes)
-
-    headers = {
-        "Content-Type": "application/json",
-        "Authorization": f"Bearer {api_key}"
-    }
-
-    payload = {
-        "model": "gpt-4o",
-        "messages": [
-            {
-                "role": "user",
-                "content": [
-                    {
-                        "type": "text",
-                        "text": "Given this checkbox tell if it it is 'marked' or 'not marked'. DO not say anything else."
-                    },
-                    {
-                        "type": "image_url",
-                        "image_url": {
-                            "url": f"data:image/png;base64,{base64_image}"
+        payload = {
+            "model": "gpt-4o",
+            "messages": [
+                {
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "text",
+                            "text": selected_prompt
+                        },
+                        {
+                            "type": "image_url",
+                            "image_url": {
+                                "url": f"data:image/png;base64,{base64_image}"
+                            }
                         }
-                    }
-                ]
-            }
-        ],
-        "max_tokens": 300,
-        "temperature":temperature
-    }
+                    ]
+                }
+            ],
+            "max_tokens": 300,
+            "temperature": temperature
+        }
 
-    response = requests.post("https://api.openai.com/v1/chat/completions", headers=headers, json=payload)
-    response_content = response.json()
-    print(response_content['choices'][0]['message']['content'])
-    return response_content['choices'][0]['message']['content']
+        response = requests.post("https://api.openai.com/v1/chat/completions", headers=headers, json=payload)
+        response_content = response.json()
+        ocr_content = response_content['choices'][0]['message']['content'].strip().lower()
+        
+        non_meaningful_outputs = {
+            "Name": ['empty', 'unknown', '', 'no name detected', 'name not found'],
+            "Date": ['empty', 'unknown', '', 'no date detected', 'date not found'],
+            "Signature": ['empty', 'unknown', '', 'no signature detected', 'signature not found'],
+            "Checkbox": ['empty', 'unknown', '', 'not marked', 'marked', 'no checkbox detected'],
+            "Text": ['empty', 'unknown', '', 'no text detected', 'text not found']
+        }
+
+        is_meaningful = ocr_content not in non_meaningful_outputs[param_type]
+
+        is_present = is_meaningful and len(ocr_content) > 0
+        
+        return ocr_content, is_present
 
 
 
-# def detect_new_text(image1, image2, temperature=0.00001):
-#     api_key = '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'
-    
-#     def encode_image(image):
-#         buffered = BytesIO()
-#         image.save(buffered, format="PNG")
-#         return base64.b64encode(buffered.getvalue()).decode('utf-8')
 
-#     base64_image1 = encode_image(image1)
-#     base64_image2 = encode_image(image2)
-
-#     headers = {
-#         "Content-Type": "application/json",
-#         "Authorization": f"Bearer {api_key}"
-#     }
-
-#     payload = {
-#         "model": "gpt-4o",
-#         "messages": [
-#             {
-#                 "role": "user",
-#                 "content": [
-#                     {
-#                         "type": "text",
-#                         "text": "Given these two images, identify any text present in the second image that is not in the first image. If there is any new text, return 'True', otherwise return 'False'. Do not say Anything else. Keep in mind the following image contains a date if it does."
-#                     },
-#                     {
-#                         "type": "image_url",
-#                         "image_url": {
-#                             "url": f"data:image/png;base64,{base64_image1}"
-#                         }
-#                     },
-#                     {
-#                         "type": "image_url",
-#                         "image_url": {
-#                             "url": f"data:image/png;base64,{base64_image2}"
-#                         }
-#                     }
-#                 ]
-#             }
-#         ],
-#         "max_tokens": 300,
-#         "temperature": temperature
-#     }
-
-    # response = requests.post("https://api.openai.com/v1/chat/completions", headers=headers, json=payload)
-    # response_content = response.json()
-    # result = response_content['choices'][0]['message']['content'].strip().lower()
-    # return result == 'true'

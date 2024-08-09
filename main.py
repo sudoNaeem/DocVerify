@@ -8,7 +8,7 @@ import os
 from datetime import datetime
 import cv2
 from utils import (
-     process_pdf_file, extract_images, resize_pdf, get_filenames_and_annotations, detect_document_words,detect_checkbox_filled)
+     process_pdf_file, extract_images, resize_pdf, get_filenames_and_annotations,extract_text)
 import psycopg2
 import boto3
 
@@ -100,37 +100,26 @@ async def upload_pdfs(filename: str,
         resize_end_time = datetime.now()
         logger.info(f"Time taken to resize PDFs + Deskewing: {resize_end_time - retrieval_end_time}")
 
-        doc_template = fitz.open(stream=template_bytes, filetype="pdf")
+        #doc_template = fitz.open(stream=template_bytes, filetype="pdf")
         doc_scanned = fitz.open(stream=resized_scanned_buffer.getvalue(), filetype="pdf")
-        output_images_template = extract_images(doc_template, annotations_info)
+        #output_images_template = extract_images(doc_template, annotations_info)
         output_images_scanned = extract_images(doc_scanned, annotations_info)
         
         extraction_end_time = datetime.now()
         logger.info(f"Time taken to extract images: {extraction_end_time - resize_end_time}")
 
         results = []   
-        for img_template, img_scanned, annotation in zip(output_images_template, output_images_scanned, annotations_info):
-            #score = float(compute_vgg16_similarity(img_template, img_scanned))
-            if annotation["label"].startswith('#'):
-                logger.info("no computating vgg")
-            if annotation["label"].startswith('#'):
-                ocr = detect_checkbox_filled(cv2.imencode('.png', img_scanned)[1].tobytes())
-                if "not" in ocr.lower():
-                    is_present = False
-                    ocr =""
-                else:
-                    is_present = True
-                    ocr =""
-                logger.info("Checking a checkbox")
-            else:
-                ocr = detect_document_words(cv2.imencode('.png', img_scanned)[1].tobytes())
-                if ocr.find('empty')!=-1:
-                    is_present=False
-                else:
-                    is_present=True
+        for img_scanned, annotation in zip(output_images_scanned, annotations_info):
+            param_type = annotation.get("label_type", "Text")
+            ocr, is_present = extract_text(param_type, cv2.imencode('.png', img_scanned)[1].tobytes())
+            logger.info(f"Ocr extracted text is:{ocr}")
+            if is_present == False:
+                ocr = " "
+
             results.append({
                 "pageNumber": annotation["page_number"],
                 "tagId": annotation["label"],
+                "tagName":annotation["label_type"],
                 "isPresent": is_present,
                 "data": ocr.splitlines() if isinstance(ocr, str) else ocr,
             })
