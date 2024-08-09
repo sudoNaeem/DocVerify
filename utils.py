@@ -228,8 +228,12 @@ def detect_document_words(image_bytes,temperature=0.001):
                 "content": [
                     {
                         "type": "text",
-                        "text": """You are an OCR for handwritten text act as an OCR. Extract all handwritten text from the image.If the image is blank or contains no text, return 'empty' if it contains a text you can not understand (badly written words, signatures) return 'unknown', dont write something like 'The handwritten text in the image is:'
-                                Give exact text that you detect do not try to guess what the word is give what it is."""
+                        "text": """You are an OCR for handwritten text act as an OCR. Extract all handwritten text from the image. \n
+                                If the image is blank or contains no text, return 'empty'.\n
+                                If it contains a text you can not understand (badly written words, signatures) return 'unknown'. \n
+                                Dont write something like 'The handwritten text in the image is:'\n
+                                Give exact text that you detect do not try to guess what the word is give what it is.\n
+                                give only handwritten text."""
                     },
                     {
                         "type": "image_url",

@@ -85,15 +85,27 @@ class AnnotationManager:
             return result[0] if isinstance(result[0], list) else json.loads(result[0])
         return None
 
+    # def deduplicate_annotations(self, annotations):
+    #     seen = set()
+    #     unique_annotations = []
+    #     for annotation in annotations:
+    #         annotation_tuple = (annotation["page_number"], annotation["start_x"], annotation["start_y"], annotation["end_x"], annotation["end_y"], annotation["label"])
+    #         if annotation_tuple not in seen:
+    #             seen.add(annotation_tuple)
+    #             unique_annotations.append(annotation)
+    #     return unique_annotations
+
     def deduplicate_annotations(self, annotations):
-        seen = set()
-        unique_annotations = []
+        seen = {}
         for annotation in annotations:
-            annotation_tuple = (annotation["page_number"], annotation["start_x"], annotation["start_y"], annotation["end_x"], annotation["end_y"], annotation["label"])
-            if annotation_tuple not in seen:
-                seen.add(annotation_tuple)
-                unique_annotations.append(annotation)
+            annotation_key = (annotation["page_number"], annotation["start_x"], annotation["start_y"], annotation["end_x"], annotation["end_y"])
+            seen[annotation_key] = annotation  # This will overwrite any previous annotation with the same key
+        
+        # Only the last annotation with the same key is kept
+        unique_annotations = list(seen.values())
+    
         return unique_annotations
+
 
 pdf_manager = PDFManager()
 
@@ -163,18 +175,24 @@ if choice == "Upload PDF":
                     start_y = obj["top"]
                     end_x = obj["left"] + obj["width"]
                     end_y = obj["top"] + obj["height"]
-                    label = st.text_input(f"Label for annotation on Page {page_num + 1}", key=f"label{page_num}_{obj['left']}_{obj['top']}")
-                    if label.strip() == "":
-                        st.error("Label cannot be empty. Please provide a label for all annotations.")
-                    else:
+                    label_options = ["Name","Date", "Signature", "Checkbox", "Text"]
+                    label_type = st.selectbox(f"Select label type for annotation on Page {page_num + 1}", label_options, key=f"label_type{page_num}_{obj['left']}_{obj['top']}")
+
+                    label = st.text_input(f"Enter ID or name for '{label_type}' on Page {page_num + 1}", key=f"label_id{page_num}_{obj['left']}_{obj['top']}")
+
+                    if label_type and label.strip():
                         new_annotations.append({
                             "page_number": page_num + 1,
                             "start_x": start_x,
                             "start_y": start_y,
                             "end_x": end_x,
                             "end_y": end_y,
-                            "label": label
+                            "label": label,
+                            "label_type": label_type
+                            
                         })
+                    else:
+                        st.error("Please select a label type and enter an ID or name for all annotations.")
 
                 seen = set()
                 unique_annotations = []
