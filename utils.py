@@ -144,7 +144,7 @@ def get_filenames_and_annotations():
     return results
 
 
-def extract_text(param_type, image_bytes, temperature=0.7):
+def extract_text(param_type, image_bytes, temperature=0.2):
         api_key = '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'
         def encode_image(image_bytes):
             return base64.b64encode(image_bytes).decode('utf-8')
@@ -157,8 +157,10 @@ def extract_text(param_type, image_bytes, temperature=0.7):
         }
 
         prompts = {
-                "Name": """You are an OCR for handwritten Names. Extract all handwritten names from the image.\n 
-                            Example: If the image contains 'John Doe', return 'John Doe'.\n
+                "Name": """You are an OCR for handwritten Names. Extract all handwritten names from the image.\n
+                            Not all names are english so dont guess names.\n
+                            Example: For Ishan Madhan Return Ishan Madhan.\n
+                            detect character by character and join them. Don't guess what the word is.\n 
                             If no name is detected, return 'no name detected'.\n
                             DONT ADD PUNCTUATION IN OUTPUT and Don't write 'the name is: ' .\n
                             Give the exact name that you detect, do not try to guess. Give only handwritten names.""",
@@ -180,11 +182,12 @@ def extract_text(param_type, image_bytes, temperature=0.7):
                                 If no checkbox is detected, return 'no checkbox detected'.\n
                                 Do not say anything else.""",
                 
-                "Text": """You are an OCR for handwritten text. Extract all handwritten text from the image.\n
-                        Example: If the image contains 'Hello World', return 'Hello World'.\n
+                "Text": """You are an OCR for handwritten text and numbers and NOT for  text. Extract all handwritten text from the image.\n
+                            Don't guess what the word is.\n
+                            Detect numbers too.\n
+                            Only return handwritten text.\n
                         If no text is detected, return 'no text detected'.\n
-                        DONT ADD PUNCTUATION IN OUTPUT and Don't write 'the Text is: '\n
-                        Give the exact text that you detect, do not try to guess what the word is. Give only handwritten text."""
+                        Don't write 'the Text is: '"""
             }
 
         if param_type not in prompts:
@@ -223,7 +226,7 @@ def extract_text(param_type, image_bytes, temperature=0.7):
             "Date": ['empty', 'unknown', '', 'no date detected', 'date not found'],
             "Signature": ['empty', 'unknown', '', 'no signature detected', 'signature not found'],
             "Checkbox": ['empty', 'unknown', '', 'not marked', 'no checkbox detected'],
-            "Text": ['empty', 'unknown', '', 'no text detected', 'text not found']
+            "Text": ['empty', 'unknown', '', 'no text detected', 'text not found','empty.', 'unknown.', '', 'no text detected.', 'text not found.']
         }
 
         is_meaningful = ocr_content not in non_meaningful_outputs[param_type]
