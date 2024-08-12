@@ -183,7 +183,7 @@ def extract_text(param_type, image_bytes, temperature=0.2):
                                 If no checkbox is detected, return 'no checkbox detected'.\n
                                 Do not say anything else.""",
                 
-                "Text": """You are an OCR for text and numbers. Extract all  text from the image.\n
+                "Text": """You are an OCR for text and numbers. Extract all text from the image, Extract Handwritten text too.\n
                             Don't guess what the word is.\n
                             Detect numbers too.\n
                             If no text is detected, return 'no text detected'.\n
