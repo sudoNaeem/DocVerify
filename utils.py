@@ -158,6 +158,7 @@ def extract_text(param_type, image_bytes, temperature=0.2):
 
         prompts = {
                 "Name": """You are an OCR for handwritten Names. Extract all handwritten names from the image.\n
+                            Only return handwritten text.\n
                             Not all names are english so dont guess names.\n
                             Example: For Ishan Madhan Return Ishan Madhan.\n
                             detect character by character and join them. Don't guess what the word is.\n 
@@ -183,11 +184,11 @@ def extract_text(param_type, image_bytes, temperature=0.2):
                                 Do not say anything else.""",
                 
                 "Text": """You are an OCR for handwritten text and numbers and NOT for  text. Extract all handwritten text from the image.\n
+                            Only return handwritten text.\n
                             Don't guess what the word is.\n
                             Detect numbers too.\n
-                            Only return handwritten text.\n
-                        If no text is detected, return 'no text detected'.\n
-                        Don't write 'the Text is: '"""
+                            If no text is detected, return 'no text detected'.\n
+                            Don't write 'the Text is: '"""
             }
 
         if param_type not in prompts:
