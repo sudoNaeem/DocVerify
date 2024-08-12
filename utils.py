@@ -183,8 +183,7 @@ def extract_text(param_type, image_bytes, temperature=0.2):
                                 If no checkbox is detected, return 'no checkbox detected'.\n
                                 Do not say anything else.""",
                 
-                "Text": """You are an OCR for handwritten text and numbers and NOT for  text. Extract all handwritten text from the image.\n
-                            Only return handwritten text.\n
+                "Text": """You are an OCR for text and numbers. Extract all  text from the image.\n
                             Don't guess what the word is.\n
                             Detect numbers too.\n
                             If no text is detected, return 'no text detected'.\n
@@ -220,17 +219,17 @@ def extract_text(param_type, image_bytes, temperature=0.2):
 
         response = requests.post("https://api.openai.com/v1/chat/completions", headers=headers, json=payload)
         response_content = response.json()
-        ocr_content = response_content['choices'][0]['message']['content'].strip().lower()
+        ocr_content = response_content['choices'][0]['message']['content'].strip()
         
         non_meaningful_outputs = {
-            "Name": ['empty', 'unknown', '', 'no name detected', 'name not found'],
-            "Date": ['empty', 'unknown', '', 'no date detected', 'date not found'],
-            "Signature": ['empty', 'unknown', '', 'no signature detected', 'signature not found'],
-            "Checkbox": ['empty', 'unknown', '', 'not marked', 'no checkbox detected'],
-            "Text": ['empty', 'unknown', '', 'no text detected', 'text not found','empty.', 'unknown.', '', 'no text detected.', 'text not found.']
+            "Name": ['empty', 'unknown', '',' ', 'no name detected', 'name not found'],
+            "Date": ['empty', 'unknown', '',' ', 'no date detected', 'date not found'],
+            "Signature": ['empty', 'unknown', '',' ', 'no signature detected', 'signature not found'],
+            "Checkbox": ['empty', 'unknown', '',' ', 'not marked', 'no checkbox detected','no checkbox'],
+            "Text": ['empty', 'unknown', '',' ', 'no text detected', 'text not found','empty.', 'unknown.', '', 'no text detected.', 'text not found.']
         }
 
-        is_meaningful = ocr_content not in non_meaningful_outputs[param_type]
+        is_meaningful = ocr_content.lower() not in non_meaningful_outputs[param_type]
 
         is_present = is_meaningful and len(ocr_content) > 0
         
