@@ -1,7 +1,7 @@
 import fitz
 import streamlit as st
 from streamlit_drawable_canvas import st_canvas
-from PIL import Image
+from PIL import Image,ImageDraw
 import numpy as np
 import boto3
 import os
@@ -111,7 +111,7 @@ pdf_manager = PDFManager()
 
 st.title("PDF Annotator")
 st.sidebar.title("PDF Tools")
-choice = st.sidebar.radio("Select an option:", ("Upload PDF", "Retrieve PDF", "Retrieve Annotations"))
+choice = st.sidebar.radio("Select an option:", ("Upload PDF", "Retrieve PDF", "Retrieve Annotations","PDF Annotated"))
 if choice == "Upload PDF":
     if "annotations" not in st.session_state:
         st.session_state.annotations = {}
@@ -267,3 +267,51 @@ elif choice == "Retrieve Annotations":
             st.error(str(e))
             if pg_conn is not None:
                 pg_conn.close()
+
+elif choice == "PDF Annotated":
+    pdf_to_annotate = st.text_input("Enter the name of the PDF to annotate and display")
+    if st.button("Retrieve and Annotate PDF"):
+        try:
+            pdf_data = pdf_manager.retrieve_pdf(pdf_to_annotate)
+            if pdf_data:
+                st.success(f"Retrieved and displaying annotated '{pdf_to_annotate}'")
+                
+                try:
+                    pdf_document = fitz.open(stream=pdf_data, filetype="pdf")
+                    pg_conn = get_pg_connection()
+                    annotation_manager = AnnotationManager(pg_conn)
+                    annotations = annotation_manager.retrieve_annotations(pdf_to_annotate)
+                    
+                    pages_images = [(page_num, np.array(Image.frombytes("RGB", [pix.width, pix.height], pix.samples)))
+                                    for page_num, page in enumerate(pdf_document)
+                                    for pix in [page.get_pixmap()]]
+                    
+                    for page_num, pdf_image in pages_images:
+                        st.write(f"Page {page_num + 1}")
+                        
+                        # Convert image to an editable format
+                        annotated_image = Image.fromarray(pdf_image)
+                        draw = ImageDraw.Draw(annotated_image)
+                        
+                        # Draw annotations
+                        if annotations:
+                            for annotation in annotations:
+                                if annotation['page_number'] == page_num + 1:
+                                    start = (annotation['start_x'], annotation['start_y'])
+                                    end = (annotation['end_x'], annotation['end_y'])
+                                    draw.rectangle([start, end], outline="red", width=2)
+                                    label_position = (start[0], start[1] - 15)
+                                    draw.text(label_position, annotation['label'], fill="red")
+                        
+                        # Display the annotated image
+                        st.image(annotated_image)
+                    
+                    pg_conn.close()
+                except Exception as e:
+                    st.error("Failed to process or annotate PDF data.")
+                    st.error(str(e))
+            else:
+                st.error(f"No PDF found with the name '{pdf_to_annotate}'")
+        except Exception as e:
+            st.error(str(e))
+
