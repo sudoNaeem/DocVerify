@@ -1,5 +1,5 @@
 env/*
-env
+env/
 *.pdf
 *.keras
 __pycache__/
