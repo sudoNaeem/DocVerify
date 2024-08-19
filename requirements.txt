@@ -7,15 +7,15 @@ numpy
 opencv-python-headless
 scipy
 PyMuPDF
-tensorflow
+#tensorflow
 streamlit
 streamlit-drawable-canvas
 pymongo
 PyPDF2
-python-dotenv
-google-cloud
-google-cloud-vision
+# google-cloud
+# google-cloud-vision
 psycopg2-binary
 boto3
 openai
 datetime
+

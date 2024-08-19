@@ -4,4 +4,4 @@ myenv
 *.keras
 __pycache__/
 .env
-
+./home/emanmunir/abark/signature_detection/output_images

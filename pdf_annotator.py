@@ -4,10 +4,12 @@ from streamlit_drawable_canvas import st_canvas
 from PIL import Image,ImageDraw
 import numpy as np
 import boto3
+from io import BytesIO
 import os
 #from dotenv import load_dotenv
 import psycopg2
 import json
+from utils import(process_pdf_extract_images_and_save_high_res)
 
 #load_dotenv()
 
@@ -43,21 +45,44 @@ def get_s3_client():
 
 s3_client = get_s3_client()
 
+# class PDFManager:
+#     def __init__(self):
+#         self.s3_client = s3_client
+#         self.bucket_name = S3_BUCKET_NAME
+
+#     def upload_pdf(self, file, pdf_name):
+#         file_data = file.read()
+#         s3_key = f"pdfs/{pdf_name}"
+#         self.s3_client.put_object(Bucket=self.bucket_name, Key=s3_key, Body=file_data)
+#         return s3_key
+
+#     def retrieve_pdf(self, pdf_name):
+#         s3_key = f"pdfs/{pdf_name}"
+#         pdf_data = self.s3_client.get_object(Bucket=self.bucket_name, Key=s3_key)['Body'].read()
+#         return pdf_data
+
+
+
 class PDFManager:
     def __init__(self):
         self.s3_client = s3_client
         self.bucket_name = S3_BUCKET_NAME
 
     def upload_pdf(self, file, pdf_name):
-        file_data = file.read()
+        # Process the uploaded PDF
+        pdf_buffer = BytesIO(file.read())
+        processed_pdf = process_pdf_extract_images_and_save_high_res(pdf_buffer)
+        
+        # Upload the processed PDF to S3
         s3_key = f"pdfs/{pdf_name}"
-        self.s3_client.put_object(Bucket=self.bucket_name, Key=s3_key, Body=file_data)
+        self.s3_client.put_object(Bucket=self.bucket_name, Key=s3_key, Body=processed_pdf.getvalue())
         return s3_key
 
     def retrieve_pdf(self, pdf_name):
         s3_key = f"pdfs/{pdf_name}"
         pdf_data = self.s3_client.get_object(Bucket=self.bucket_name, Key=s3_key)['Body'].read()
         return pdf_data
+
 
 class AnnotationManager:
     def __init__(self, pg_conn):

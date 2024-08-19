@@ -8,7 +8,7 @@ import os
 from datetime import datetime
 import cv2
 from utils import (
-     process_pdf_file, extract_images, resize_pdf, get_filenames_and_annotations,extract_text)
+     process_pdf_file, extract_images, resize_pdf, get_filenames_and_annotations,extract_text,process_pdf_extract_images_and_save_high_res)
 import psycopg2
 import boto3
 
@@ -91,17 +91,37 @@ async def upload_pdfs(filename: str,
         retrieval_end_time = datetime.now()
         logger.info(f"Time taken to retrieve template: {retrieval_end_time - start_time}")
 
+        # if Deskewing:
+        #     processed_scanned_buffer = process_pdf_file(scanned_bytes)
+        #     #resized_scanned_buffer = resize_pdf(processed_scanned_buffer.getvalue(), template_bytes)
+        #     new_pdf = process_pdf_extract_images_and_save_high_res(processed_scanned_buffer)
+        # else: 
+        #     new_pdf = process_pdf_extract_images_and_save_high_res(scanned_bytes)
+
         if Deskewing:
+            # Process the scanned bytes with deskewing
             processed_scanned_buffer = process_pdf_file(scanned_bytes)
-            resized_scanned_buffer = resize_pdf(processed_scanned_buffer.getvalue(), template_bytes)
+            
+            # Extract images and save high resolution to create a new PDF
+            new_pdf = process_pdf_extract_images_and_save_high_res(processed_scanned_buffer)
+            
+            # Now, resize the new_pdf to match the template PDF size
+            resized_new_pdf = resize_pdf(new_pdf.getvalue(), template_bytes)
+            
         else: 
-            resized_scanned_buffer = resize_pdf(scanned_bytes, template_bytes)
+            # Extract images and save high resolution to create a new PDF without deskewing
+            new_pdf = process_pdf_extract_images_and_save_high_res(scanned_bytes)
+            
+            # Now, resize the new_pdf to match the template PDF size
+            resized_new_pdf = resize_pdf(new_pdf.getvalue(), template_bytes)
 
         resize_end_time = datetime.now()
         logger.info(f"Time taken to resize PDFs + Deskewing: {resize_end_time - retrieval_end_time}")
 
+
+
         #doc_template = fitz.open(stream=template_bytes, filetype="pdf")
-        doc_scanned = fitz.open(stream=resized_scanned_buffer.getvalue(), filetype="pdf")
+        doc_scanned = fitz.open(stream=resized_new_pdf, filetype="pdf")
         #output_images_template = extract_images(doc_template, annotations_info)
         output_images_scanned = extract_images(doc_scanned, annotations_info)
         
