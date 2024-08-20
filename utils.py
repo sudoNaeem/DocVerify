@@ -314,39 +314,62 @@ def extract_text(param_type, image_bytes, temperature=0.2):
 
 
 
-# def process_pdf_extract_images_and_save_high_res(pdf_buffer, padding=20, tolerance=245, dpi=300):
+# from io import BytesIO
+# import numpy as np
+# from PIL import Image
+# import fitz  # PyMuPDF
+
+# def process_pdf_extract_images_and_save_high_res(pdf_buffer, padding=20, tolerance=245, dpi=600):
+#     # Ensure pdf_buffer is a BytesIO object
+#     if isinstance(pdf_buffer, bytes):
+#         pdf_buffer = BytesIO(pdf_buffer)
+    
+#     # Open the PDF document using PyMuPDF
 #     doc = fitz.open(stream=pdf_buffer.getvalue(), filetype="pdf")
 #     images = []
     
-#     # Get first page bounding box
+#     # Get the bounding box from the first page
 #     first_page = doc.load_page(0)
 #     first_pix = first_page.get_pixmap(dpi=dpi)
 #     first_img = Image.frombytes("RGB", [first_pix.width, first_pix.height], first_pix.samples)
 #     img_array = np.array(first_img)
     
+#     # Convert to grayscale for easier processing
 #     img_gray = np.mean(img_array, axis=2) if img_array.ndim == 3 else img_array
+    
+#     # Create a mask to identify non-white pixels
 #     mask = img_gray < tolerance
     
+#     # Find the coordinates of the non-white pixels
 #     coords = np.argwhere(mask)
+    
+#     # If no non-white pixels are found, raise an exception
 #     if coords.size == 0:
 #         raise ValueError("No non-white content found.")
     
-#     (x0, y0), (x1, y1) = coords.min(axis=0), coords.max(axis=0) + 1
+#     # Get the bounding box of the non-white pixels
+#     (y0, x0), (y1, x1) = coords.min(axis=0), coords.max(axis=0) + 1
     
+#     # Process each page using the bounding box calculated from the first page
 #     for page_num in range(len(doc)):
 #         page = doc.load_page(page_num)
 #         pix = page.get_pixmap(dpi=dpi)
 #         img = Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
 #         img_array = np.array(img)
         
+#         # Apply padding to the bounding box
 #         x0_padded = max(x0 - padding, 0)
 #         y0_padded = max(y0 - padding, 0)
-#         x1_padded = min(x1 + padding, img_array.shape[0])
-#         y1_padded = min(y1 + padding, img_array.shape[1])
+#         x1_padded = min(x1 + padding, img_array.shape[1])
+#         y1_padded = min(y1 + padding, img_array.shape[0])
         
-#         cropped_img = img.crop((y0_padded, x0_padded, y1_padded, x1_padded))
+#         # Crop the image (left, upper, right, lower)
+#         cropped_img = img.crop((x0_padded, y0_padded, x1_padded, y1_padded))
+        
+#         # Append the cropped image to the list
 #         images.append(cropped_img)
     
+#     # Save the processed images as a high-resolution PDF to a BytesIO buffer
 #     output_buffer = BytesIO()
 #     if images:
 #         images[0].save(output_buffer, format="PDF", save_all=True, append_images=images[1:], resolution=dpi)
@@ -355,12 +378,8 @@ def extract_text(param_type, image_bytes, temperature=0.2):
 #     return output_buffer
 
 
-from io import BytesIO
-import numpy as np
-from PIL import Image
-import fitz  # PyMuPDF
 
-def process_pdf_extract_images_and_save_high_res(pdf_buffer, padding=20, tolerance=245, dpi=600):
+def process_pdf_extract_images_and_save_high_res(pdf_buffer, padding=20, tolerance=245, dpi=600, bw_threshold=128, scale_factor=2):
     # Ensure pdf_buffer is a BytesIO object
     if isinstance(pdf_buffer, bytes):
         pdf_buffer = BytesIO(pdf_buffer)
@@ -407,13 +426,23 @@ def process_pdf_extract_images_and_save_high_res(pdf_buffer, padding=20, toleran
         # Crop the image (left, upper, right, lower)
         cropped_img = img.crop((x0_padded, y0_padded, x1_padded, y1_padded))
         
-        # Append the cropped image to the list
-        images.append(cropped_img)
+        # Convert to grayscale
+        gray_img = cropped_img.convert("L")  # Convert to grayscale (black and white)
+        
+        # Apply a threshold to convert to pure black and white
+        bw_img = gray_img.point(lambda p: 255 if p > bw_threshold else 0, mode='1')
+        
+        # Upscale the image to increase resolution
+        bw_img_upscaled = bw_img.resize((bw_img.width * scale_factor, bw_img.height * scale_factor), Image.LANCZOS)
+        
+        # Append the black and white upscaled image to the list
+        images.append(bw_img_upscaled)
     
-    # Save the processed images as a high-resolution PDF to a BytesIO buffer
+    # Save the processed black and white images as a high-resolution PDF to a BytesIO buffer
     output_buffer = BytesIO()
     if images:
         images[0].save(output_buffer, format="PDF", save_all=True, append_images=images[1:], resolution=dpi)
     
     output_buffer.seek(0)
     return output_buffer
+

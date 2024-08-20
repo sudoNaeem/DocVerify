@@ -1,21 +1,21 @@
 import fitz
 import streamlit as st
 from streamlit_drawable_canvas import st_canvas
-from PIL import Image,ImageDraw
+from PIL import Image, ImageDraw
 import numpy as np
 import boto3
 from io import BytesIO
-import os
-#from dotenv import load_dotenv
 import psycopg2
 import json
-from utils import(process_pdf_extract_images_and_save_high_res)
+import logging
+from utils import process_pdf_extract_images_and_save_high_res
 
-#load_dotenv()
-
-
+# Set up logging configuration
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 st.set_page_config(layout="wide")
+
+# Hide Streamlit menu and footer
 st.markdown("""
     <style>
     #MainMenu {visibility: hidden;}
@@ -23,17 +23,18 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-
-
 POSTGRESQL_CONNECTION_STRING='postgresql://postgres.tjnvqtfpfcarwaqcpugt:c3jmkacJGhKD4e@aws-0-us-west-1.pooler.supabase.com:6543/postgres'
 AWS_ACCESS_KEY_ID='AKIAWTYXWIPAGEVLW2RZ'
 AWS_SECRET_ACCESS_KEY='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'
 S3_BUCKET_NAME='pdfsignaturedetection'
 
-
 def get_pg_connection():
-    pg_conn = psycopg2.connect(POSTGRESQL_CONNECTION_STRING)
-    return pg_conn
+    try:
+        return psycopg2.connect(POSTGRESQL_CONNECTION_STRING)
+    except Exception as e:
+        logging.error(f"Error connecting to PostgreSQL: {e}")
+        st.error("Error connecting to database.")
+        raise
 
 @st.cache_resource
 def get_s3_client():
@@ -45,135 +46,132 @@ def get_s3_client():
 
 s3_client = get_s3_client()
 
-# class PDFManager:
-#     def __init__(self):
-#         self.s3_client = s3_client
-#         self.bucket_name = S3_BUCKET_NAME
-
-#     def upload_pdf(self, file, pdf_name):
-#         file_data = file.read()
-#         s3_key = f"pdfs/{pdf_name}"
-#         self.s3_client.put_object(Bucket=self.bucket_name, Key=s3_key, Body=file_data)
-#         return s3_key
-
-#     def retrieve_pdf(self, pdf_name):
-#         s3_key = f"pdfs/{pdf_name}"
-#         pdf_data = self.s3_client.get_object(Bucket=self.bucket_name, Key=s3_key)['Body'].read()
-#         return pdf_data
-
-
-
+# Main PDF Manager Class
 class PDFManager:
     def __init__(self):
         self.s3_client = s3_client
         self.bucket_name = S3_BUCKET_NAME
 
-    def upload_pdf(self, file, pdf_name):
-        # Process the uploaded PDF
-        pdf_buffer = BytesIO(file.read())
-        processed_pdf = process_pdf_extract_images_and_save_high_res(pdf_buffer)
-        
-        # Upload the processed PDF to S3
-        s3_key = f"pdfs/{pdf_name}"
-        self.s3_client.put_object(Bucket=self.bucket_name, Key=s3_key, Body=processed_pdf.getvalue())
-        return s3_key
-
     def retrieve_pdf(self, pdf_name):
-        s3_key = f"pdfs/{pdf_name}"
-        pdf_data = self.s3_client.get_object(Bucket=self.bucket_name, Key=s3_key)['Body'].read()
-        return pdf_data
+        try:
+            s3_key = f"pdfs/{pdf_name}"
+            pdf_data = self.s3_client.get_object(Bucket=self.bucket_name, Key=s3_key)['Body'].read()
+            logging.info(f"Retrieved PDF '{pdf_name}' from S3.")
+            return pdf_data
+        except Exception as e:
+            logging.error(f"Error retrieving PDF '{pdf_name}': {e}")
+            st.error(f"Error retrieving PDF '{pdf_name}'.")
 
+    def upload_pdf_to_s3(self, file, pdf_name):
+        try:
+            # Process the uploaded PDF
+            pdf_buffer = BytesIO(file.read())
+            processed_pdf = process_pdf_extract_images_and_save_high_res(pdf_buffer)
 
+            # Check if file exists in S3
+            s3_key = f"pdfs/{pdf_name}"
+            if self.file_exists_in_s3(s3_key):
+                logging.warning(f"File '{pdf_name}' already exists in S3.")
+                return None  # File already exists
+
+            # Upload the processed PDF to S3
+            self.s3_client.put_object(Bucket=self.bucket_name, Key=s3_key, Body=processed_pdf.getvalue())
+            logging.info(f"Uploaded PDF '{pdf_name}' to S3.")
+            return s3_key
+        except Exception as e:
+            logging.error(f"Error uploading PDF '{pdf_name}' to S3: {e}")
+            st.error(f"Error uploading PDF '{pdf_name}'.")
+
+    def file_exists_in_s3(self, s3_key):
+        try:
+            self.s3_client.head_object(Bucket=self.bucket_name, Key=s3_key)
+            return True
+        except self.s3_client.exceptions.ClientError as e:
+            if e.response['Error']['Code'] == '404':
+                return False
+            else:
+                logging.error(f"Error checking if file exists in S3: {e}")
+                raise
+
+# Annotation Manager Class
 class AnnotationManager:
     def __init__(self, pg_conn):
         self.pg_conn = pg_conn
 
     def save_annotations(self, pdf_name, annotations):
-        unique_annotations = self.deduplicate_annotations(annotations)
-        annotation_data = {
-            "pdf_name": pdf_name,
-            "annotations": unique_annotations
-        }
-        with self.pg_conn.cursor() as pg_cursor:
-            pg_cursor.execute(
-                "INSERT INTO annotations (pdf_name, annotations) VALUES (%s, %s)",
-                (pdf_name, json.dumps(unique_annotations))
-            )
-            self.pg_conn.commit()
-        return annotation_data
+        try:
+            unique_annotations = self.deduplicate_annotations(annotations)
+            annotation_data = {
+                "pdf_name": pdf_name,
+                "annotations": unique_annotations
+            }
+            with self.pg_conn.cursor() as pg_cursor:
+                pg_cursor.execute(
+                    "INSERT INTO annotations (pdf_name, annotations) VALUES (%s, %s)",
+                    (pdf_name, json.dumps(unique_annotations))
+                )
+                self.pg_conn.commit()
+            logging.info(f"Saved annotations for PDF '{pdf_name}'.")
+            return annotation_data
+        except Exception as e:
+            logging.error(f"Error saving annotations for PDF '{pdf_name}': {e}")
+            st.error(f"Error saving annotations.")
 
     def retrieve_annotations(self, pdf_name):
-        with self.pg_conn.cursor() as pg_cursor:
-            pg_cursor.execute("SELECT annotations FROM annotations WHERE pdf_name = %s", (pdf_name,))
-            result = pg_cursor.fetchone()
-        if result:
-            return result[0] if isinstance(result[0], list) else json.loads(result[0])
-        return None
-
-    # def deduplicate_annotations(self, annotations):
-    #     seen = set()
-    #     unique_annotations = []
-    #     for annotation in annotations:
-    #         annotation_tuple = (annotation["page_number"], annotation["start_x"], annotation["start_y"], annotation["end_x"], annotation["end_y"], annotation["label"])
-    #         if annotation_tuple not in seen:
-    #             seen.add(annotation_tuple)
-    #             unique_annotations.append(annotation)
-    #     return unique_annotations
+        try:
+            with self.pg_conn.cursor() as pg_cursor:
+                pg_cursor.execute("SELECT annotations FROM annotations WHERE pdf_name = %s", (pdf_name,))
+                result = pg_cursor.fetchone()
+            if result:
+                return json.loads(result[0]) if isinstance(result[0], str) else result[0]
+            return None
+        except Exception as e:
+            logging.error(f"Error retrieving annotations for PDF '{pdf_name}': {e}")
+            st.error(f"Error retrieving annotations.")
 
     def deduplicate_annotations(self, annotations):
         seen = {}
         for annotation in annotations:
             annotation_key = (annotation["page_number"], annotation["start_x"], annotation["start_y"], annotation["end_x"], annotation["end_y"])
-            seen[annotation_key] = annotation  # This will overwrite any previous annotation with the same key
-        
-        # Only the last annotation with the same key is kept
-        unique_annotations = list(seen.values())
-    
-        return unique_annotations
+            seen[annotation_key] = annotation
+        return list(seen.values())
 
-
+# Instantiate PDFManager and AnnotationManager
 pdf_manager = PDFManager()
 
 st.title("PDF Annotator")
 st.sidebar.title("PDF Tools")
-choice = st.sidebar.radio("Select an option:", ("Upload PDF", "Retrieve PDF", "Retrieve Annotations","PDF Annotated"))
-if choice == "Upload PDF":
-    if "annotations" not in st.session_state:
-        st.session_state.annotations = {}
+choice = st.sidebar.radio("Select an option:", ( "Upload PDF","Annotate PDF", "PDF Annotated"))
 
-    if "current_page" not in st.session_state:
-        st.session_state.current_page = 0
+if choice == "Annotate PDF":
+    st.header("Annotate PDF from S3")
 
-    def prev_page():
-        if st.session_state.current_page > 0:
-            st.session_state.current_page -= 1
+    pdf_name = st.text_input("Enter the name of the PDF to retrieve from S3")
+    if pdf_name:
+        pdf_data = pdf_manager.retrieve_pdf(pdf_name)
+        if pdf_data:
+            st.success(f"Retrieved '{pdf_name}' for annotation.")
 
-    def next_page(total_pages):
-        if st.session_state.current_page < total_pages - 1:
-            st.session_state.current_page += 1
-
-    uploaded_file = st.file_uploader("Upload PDF", type=["pdf"])
-    if uploaded_file is not None:
-        pdf_name = uploaded_file.name
-
-        pg_conn = get_pg_connection()
-        annotation_manager = AnnotationManager(pg_conn)
-
-        existing_annotations = annotation_manager.retrieve_annotations(pdf_name)
-        if existing_annotations:
-            st.error(f"The name '{pdf_name}' already exists. Please upload a PDF with a different name.")
-            pg_conn.close()
-        else:
-            s3_key = pdf_manager.upload_pdf(uploaded_file, pdf_name)
-            st.success(f"PDF uploaded to S3 with key '{s3_key}'. Annotations can now be added to '{pdf_name}'.")
-
-            pdf_data = pdf_manager.retrieve_pdf(pdf_name)
             pdf_document = fitz.open(stream=pdf_data, filetype="pdf")
             pages_images = [(page_num, np.array(Image.frombytes("RGB", [pix.width, pix.height], pix.samples)))
                             for page_num, page in enumerate(pdf_document)
                             for pix in [page.get_pixmap()]]
             total_pages = len(pages_images)
+            
+            if "annotations" not in st.session_state:
+                st.session_state.annotations = {}
+            if "current_page" not in st.session_state:
+                st.session_state.current_page = 0
+            
             current_page = st.session_state.current_page
+
+            def prev_page():
+                if st.session_state.current_page > 0:
+                    st.session_state.current_page -= 1
+
+            def next_page(total_pages):
+                if st.session_state.current_page < total_pages - 1:
+                    st.session_state.current_page += 1
 
             st.write(f"Annotate PDF - Page {current_page + 1} of {total_pages}")
 
@@ -200,7 +198,7 @@ if choice == "Upload PDF":
                     start_y = obj["top"]
                     end_x = obj["left"] + obj["width"]
                     end_y = obj["top"] + obj["height"]
-                    label_options = ["Name","Date", "Signature", "Checkbox", "Text"]
+                    label_options = ["Name", "Date", "Signature", "Checkbox", "Text"]
                     label_type = st.selectbox(f"Select label type for annotation on Page {page_num + 1}", label_options, key=f"label_type{page_num}_{obj['left']}_{obj['top']}")
 
                     label = st.text_input(f"Enter ID or name for '{label_type}' on Page {page_num + 1}", key=f"label_id{page_num}_{obj['left']}_{obj['top']}")
@@ -214,28 +212,18 @@ if choice == "Upload PDF":
                             "end_y": end_y,
                             "label": label,
                             "label_type": label_type
-                            
                         })
-                    else:
-                        st.error("Please select a label type and enter an ID or name for all annotations.")
 
-                seen = set()
-                unique_annotations = []
-                for annotation in new_annotations:
-                    annotation_tuple = (annotation["page_number"], annotation["start_x"], annotation["start_y"], annotation["end_x"], annotation["end_y"], annotation["label"])
-                    if annotation_tuple not in seen:
-                        seen.add(annotation_tuple)
-                        unique_annotations.append(annotation)
-
-                st.session_state.annotations[f"page_{page_num}"].extend(unique_annotations)
+                st.session_state.annotations[f"page_{page_num}"].extend(new_annotations)
 
             col1, col2, col3 = st.columns(3)
             col1.button("Previous Page", on_click=prev_page)
             col2.button("Next Page", on_click=next_page, args=(total_pages,))
-            
-
 
             if col3.button("Save Annotations"):
+                pg_conn = get_pg_connection()
+                annotation_manager = AnnotationManager(pg_conn)
+
                 all_boxes = []
                 for page, annotations in st.session_state.annotations.items():
                     page_number = int(page.split("_")[1])
@@ -246,52 +234,23 @@ if choice == "Upload PDF":
                 st.write("Annotations saved to database:")
                 st.json(result)
                 pg_conn.close()
-elif choice == "Retrieve PDF":
-    st.write("Retrieve and Display PDF:")
+        else:
+            st.error(f"No PDF found with the name '{pdf_name}'")
 
-    pdf_to_retrieve = st.text_input("Enter the name of the PDF to retrieve")
-    if st.button("Retrieve PDF"):
-        try:
-            pdf_data = pdf_manager.retrieve_pdf(pdf_to_retrieve)
-            if pdf_data:
-                st.success(f"Retrieved and displaying '{pdf_to_retrieve}'")
-                try:
-                    pdf_document = fitz.open(stream=pdf_data, filetype="pdf")
-                    pages_images = [(page_num, np.array(Image.frombytes("RGB", [pix.width, pix.height], pix.samples)))
-                                    for page_num, page in enumerate(pdf_document)
-                                    for pix in [page.get_pixmap()]]
-                    for page_num, pdf_image in pages_images:
-                        st.write(f"Page {page_num + 1}")
-                        st.image(pdf_image)
-                except Exception as e:
-                    st.error("Failed to process PDF data.")
-                    st.error(str(e))
-            else:
-                st.error(f"No PDF found with the name '{pdf_to_retrieve}'")
-        except Exception as e:
-            st.error(str(e))
+elif choice == "Upload PDF":
+    st.header("Upload and Process PDF to S3")
 
-elif choice == "Retrieve Annotations":
-    annotations_to_retrieve = st.text_input("Enter the name of the PDF to retrieve annotations for")
-    if st.button("Retrieve Annotations"):
-        try:
-            pg_conn = get_pg_connection()
-            if pg_conn is not None:
-                annotation_manager = AnnotationManager(pg_conn)
-                annotations = annotation_manager.retrieve_annotations(annotations_to_retrieve)
-                if annotations:
-                    st.success(f"Annotations for '{annotations_to_retrieve}'")
-                    st.json(annotations)
-                else:
-                    st.error(f"No annotations found for '{annotations_to_retrieve}'")
-                pg_conn.close()
-            else:
-                st.error("Database connection could not be established.")
-        except Exception as e:
-            st.error("An error occurred while retrieving annotations.")
-            st.error(str(e))
-            if pg_conn is not None:
-                pg_conn.close()
+    uploaded_file = st.file_uploader("Upload PDF", type=["pdf"])
+    if uploaded_file is not None:
+        pdf_name = uploaded_file.name
+
+        s3_key = pdf_manager.upload_pdf_to_s3(uploaded_file, pdf_name)
+        if s3_key:
+            st.success(f"PDF processed and uploaded to S3 with key '{s3_key}'")
+        else:
+            st.error(f"A file with the name '{pdf_name}' already exists in S3. Please rename your file and try again.")
+
+
 
 elif choice == "PDF Annotated":
     pdf_to_annotate = st.text_input("Enter the name of the PDF to annotate and display")
@@ -339,4 +298,3 @@ elif choice == "PDF Annotated":
                 st.error(f"No PDF found with the name '{pdf_to_annotate}'")
         except Exception as e:
             st.error(str(e))
-
