@@ -361,6 +361,7 @@ from PIL import Image
 import fitz  # PyMuPDF
 
 def process_pdf_extract_images_and_save_high_res(pdf_buffer, padding=20, tolerance=245, dpi=300):
+    print("FUnction called")
     # Ensure pdf_buffer is a BytesIO object
     if isinstance(pdf_buffer, bytes):
         pdf_buffer = BytesIO(pdf_buffer)
