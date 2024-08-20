@@ -379,7 +379,7 @@ def extract_text(param_type, image_bytes, temperature=0.2):
 
 
 
-def process_pdf_extract_images_and_save_high_res(pdf_buffer, padding=20, tolerance=245, dpi=600, bw_threshold=128, scale_factor=2):
+def process_pdf_extract_images_and_save_high_res(pdf_buffer,output_path="output.pdf", padding=20, tolerance=160, dpi=400):
     # Ensure pdf_buffer is a BytesIO object
     if isinstance(pdf_buffer, bytes):
         pdf_buffer = BytesIO(pdf_buffer)
@@ -426,19 +426,12 @@ def process_pdf_extract_images_and_save_high_res(pdf_buffer, padding=20, toleran
         # Crop the image (left, upper, right, lower)
         cropped_img = img.crop((x0_padded, y0_padded, x1_padded, y1_padded))
         
-        # Convert to grayscale
-        gray_img = cropped_img.convert("L")  # Convert to grayscale (black and white)
-        
-        # Apply a threshold to convert to pure black and white
-        bw_img = gray_img.point(lambda p: 255 if p > bw_threshold else 0, mode='1')
-        
-        # Upscale the image to increase resolution
-        bw_img_upscaled = bw_img.resize((bw_img.width * scale_factor, bw_img.height * scale_factor), Image.LANCZOS)
-        
-        # Append the black and white upscaled image to the list
-        images.append(bw_img_upscaled)
-    
-    # Save the processed black and white images as a high-resolution PDF to a BytesIO buffer
+        # Append the cropped image to the list
+        images.append(cropped_img)
+    if images:
+        images[0].save(output_path, format="PDF", save_all=True, append_images=images[1:], resolution=dpi)
+
+    # Save the processed images as a high-resolution PDF to a BytesIO buffer
     output_buffer = BytesIO()
     if images:
         images[0].save(output_buffer, format="PDF", save_all=True, append_images=images[1:], resolution=dpi)
