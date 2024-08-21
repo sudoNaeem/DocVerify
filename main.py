@@ -62,12 +62,11 @@ async def upload_pdfs(filename: str,
 
     if not Scanned.filename.endswith('.pdf'):
         raise HTTPException(status_code=400, detail="Invalid file format. Please upload a PDF file.")
-    # if not (0 <= Threshold <= 1):
-    #     raise HTTPException(status_code=400, detail="Threshold must be between 0 and 1.")
 
     try:
         scanned_bytes = await Scanned.read()
         annotations = get_filenames_and_annotations()
+        Filename =f"{filename}"
         if filename not in annotations:
             logger.warning(f"File '{filename}' not found in annotations.")
             raise HTTPException(status_code=404, detail=f"File '{filename}' not found")
@@ -90,13 +89,6 @@ async def upload_pdfs(filename: str,
         
         retrieval_end_time = datetime.now()
         logger.info(f"Time taken to retrieve template: {retrieval_end_time - start_time}")
-
-        # if Deskewing:
-        #     processed_scanned_buffer = process_pdf_file(scanned_bytes)
-        #     #resized_scanned_buffer = resize_pdf(processed_scanned_buffer.getvalue(), template_bytes)
-        #     new_pdf = process_pdf_extract_images_and_save_high_res(processed_scanned_buffer)
-        # else: 
-        #     new_pdf = process_pdf_extract_images_and_save_high_res(scanned_bytes)
 
         if Deskewing:
             # Process the scanned bytes with deskewing
@@ -123,7 +115,7 @@ async def upload_pdfs(filename: str,
         #doc_template = fitz.open(stream=template_bytes, filetype="pdf")
         doc_scanned = fitz.open(stream=resized_new_pdf, filetype="pdf")
         #output_images_template = extract_images(doc_template, annotations_info)
-        output_images_scanned = extract_images(doc_scanned, annotations_info)
+        output_images_scanned = extract_images(doc_scanned, annotations_info,filename=Scanned.filename,client = s3_client)
         
         extraction_end_time = datetime.now()
         logger.info(f"Time taken to extract images: {extraction_end_time - resize_end_time}")

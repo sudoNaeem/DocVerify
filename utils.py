@@ -16,6 +16,9 @@ import os
 import psycopg2
 from fastapi import HTTPException
 
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
 
 POSTGRESQL_CONNECTION_STRING='postgresql://postgres.tjnvqtfpfcarwaqcpugt:c3jmkacJGhKD4e@aws-0-us-west-1.pooler.supabase.com:6543/postgres'
 AWS_ACCESS_KEY_ID='AKIAWTYXWIPAGEVLW2RZ'
@@ -78,31 +81,67 @@ def process_pdf_file(file_bytes):
     output_buffer.seek(0)
     return output_buffer
 
-# def extract_images(doc, annotations_info):
+
+# import os
+
+# def extract_images(doc, annotations_info, output_folder="output_images"):
 #     output_images = []
-#     print(annotations_info)
-#     for annotation in annotations_info:
-        
-#         page_number = annotation["page_number"]-1
+    
+#     # Ensure the output directory exists
+#     if not os.path.exists(output_folder):
+#         os.makedirs(output_folder)
+    
+#     for idx, annotation in enumerate(annotations_info):
+#         page_number = annotation["page_number"] - 1  # Adjust for 0-indexing
 #         x0, y0, x1, y1 = annotation["start_x"], annotation["start_y"], annotation["end_x"], annotation["end_y"]
+        
+#         # Load the page
 #         page = doc.load_page(page_number)
+        
+#         # Get page dimensions
+#         page_width, page_height = page.rect.width, page.rect.height
+        
+#         # Ensure the coordinates are within the page bounds
+#         x0 = max(0, min(page_width, x0))
+#         y0 = max(0, min(page_height, y0))
+#         x1 = max(0, min(page_width, x1))
+#         y1 = max(0, min(page_height, y1))
+        
+#         # Create a clipping rectangle with validated coordinates
 #         clip = fitz.Rect(x0, y0, x1, y1)
-#         pix = page.get_pixmap(clip=clip)
-#         img = cv2.imdecode(np.frombuffer(pix.tobytes(), dtype=np.uint8), cv2.IMREAD_COLOR)
-#         output_images.append(img)
+        
+#         try:
+#             # Get the pixmap using the validated clip
+#             pix = page.get_pixmap(clip=clip)
+            
+#             # Convert pixmap to image
+#             img = cv2.imdecode(np.frombuffer(pix.tobytes(), dtype=np.uint8), cv2.IMREAD_COLOR)
+#             output_images.append(img)
+            
+#             # Save the image locally
+#             output_image_path = os.path.join(output_folder, f"image_{page_number + 1}_{idx + 1}.png")
+#             cv2.imwrite(output_image_path, img)
+            
+#         except Exception as e:
+#             logging.error(f"Error processing page {page_number + 1}: {str(e)}")
+#             raise HTTPException(status_code=500, detail=f"Error processing page {page_number + 1}: {str(e)}")
+    
 #     return output_images
 
-import os
+import fitz  # PyMuPDF
+import cv2
+import numpy as np
+import logging
+from fastapi import HTTPException
 
-def extract_images(doc, annotations_info, output_folder="output_images"):
+def extract_images(doc, annotations_info,filename,client):
+    
     output_images = []
     
-    # Ensure the output directory exists
-    if not os.path.exists(output_folder):
-        os.makedirs(output_folder)
-    
-    for idx, annotation in enumerate(annotations_info):
+    for annotation in annotations_info:
         page_number = annotation["page_number"] - 1  # Adjust for 0-indexing
+        tag_id = annotation["label"]  # Use the tag ID for naming
+        
         x0, y0, x1, y1 = annotation["start_x"], annotation["start_y"], annotation["end_x"], annotation["end_y"]
         
         # Load the page
@@ -128,12 +167,13 @@ def extract_images(doc, annotations_info, output_folder="output_images"):
             img = cv2.imdecode(np.frombuffer(pix.tobytes(), dtype=np.uint8), cv2.IMREAD_COLOR)
             output_images.append(img)
             
-            # Save the image locally
-            output_image_path = os.path.join(output_folder, f"image_{page_number + 1}_{idx + 1}.png")
-            cv2.imwrite(output_image_path, img)
-            
+            # Save the image to S3
+            s3_key = f"images/{filename}/page#{page_number + 1}_{tag_id}.png"
+            _, img_encoded = cv2.imencode('.png', img)
+            client.put_object(Bucket=S3_BUCKET_NAME, Key=s3_key, Body=img_encoded.tobytes(), ContentType='image/png')
+        
         except Exception as e:
-            logging.error(f"Error processing page {page_number + 1}: {str(e)}")
+            logger.error(f"Error processing page {page_number + 1}: {str(e)}")
             raise HTTPException(status_code=500, detail=f"Error processing page {page_number + 1}: {str(e)}")
     
     return output_images
@@ -164,44 +204,6 @@ def resize_pdf(scan_pdf_bytes, template_pdf_bytes):
     output_buffer.seek(0)
     return output_buffer.getvalue()
 
-# from io import BytesIO
-# from PyPDF2 import PdfReader, PdfWriter, PageObject
-
-# def resize_pdf(scan_pdf_bytes: bytes, template_pdf_bytes: bytes) -> bytes:
-#     scan_reader = PdfReader(BytesIO(scan_pdf_bytes))
-#     template_reader = PdfReader(BytesIO(template_pdf_bytes))
-#     scan_writer = PdfWriter()
-
-#     # Get the dimensions of the template page
-#     template_page = template_reader.pages[0]
-#     template_page_width = float(template_page.mediabox.width)
-#     template_page_height = float(template_page.mediabox.height)
-
-#     for page_num in range(len(scan_reader.pages)):
-#         scan_page = scan_reader.pages[page_num]
-
-#         # Create a new page with the size of the template
-#         new_page = PageObject.create_blank_page(width=template_page_width, height=template_page_height)
-
-#         # Scale the original page to fit within the new page
-#         scale_x = template_page_width / float(scan_page.mediabox.width)
-#         scale_y = template_page_height / float(scan_page.mediabox.height)
-
-#         # Apply the scaling transformation
-#         scan_page.scale_by(min(scale_x, scale_y))
-
-#         # Merge the scaled page onto the new blank page
-#         new_page.merge_page(scan_page)
-
-#         # Add the new page to the writer
-#         scan_writer.add_page(new_page)
-
-#     # Write the resized PDF to an output buffer and return it
-#     output_buffer = BytesIO()
-#     scan_writer.write(output_buffer)
-#     output_buffer.seek(0)
-    
-#     return output_buffer.getvalue()
 
 
 def get_filenames_and_annotations():
@@ -311,71 +313,6 @@ def extract_text(param_type, image_bytes, temperature=0.2):
         
         return ocr_content, is_present
 
-
-
-
-# from io import BytesIO
-# import numpy as np
-# from PIL import Image
-# import fitz  # PyMuPDF
-
-# def process_pdf_extract_images_and_save_high_res(pdf_buffer, padding=20, tolerance=245, dpi=600):
-#     # Ensure pdf_buffer is a BytesIO object
-#     if isinstance(pdf_buffer, bytes):
-#         pdf_buffer = BytesIO(pdf_buffer)
-    
-#     # Open the PDF document using PyMuPDF
-#     doc = fitz.open(stream=pdf_buffer.getvalue(), filetype="pdf")
-#     images = []
-    
-#     # Get the bounding box from the first page
-#     first_page = doc.load_page(0)
-#     first_pix = first_page.get_pixmap(dpi=dpi)
-#     first_img = Image.frombytes("RGB", [first_pix.width, first_pix.height], first_pix.samples)
-#     img_array = np.array(first_img)
-    
-#     # Convert to grayscale for easier processing
-#     img_gray = np.mean(img_array, axis=2) if img_array.ndim == 3 else img_array
-    
-#     # Create a mask to identify non-white pixels
-#     mask = img_gray < tolerance
-    
-#     # Find the coordinates of the non-white pixels
-#     coords = np.argwhere(mask)
-    
-#     # If no non-white pixels are found, raise an exception
-#     if coords.size == 0:
-#         raise ValueError("No non-white content found.")
-    
-#     # Get the bounding box of the non-white pixels
-#     (y0, x0), (y1, x1) = coords.min(axis=0), coords.max(axis=0) + 1
-    
-#     # Process each page using the bounding box calculated from the first page
-#     for page_num in range(len(doc)):
-#         page = doc.load_page(page_num)
-#         pix = page.get_pixmap(dpi=dpi)
-#         img = Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
-#         img_array = np.array(img)
-        
-#         # Apply padding to the bounding box
-#         x0_padded = max(x0 - padding, 0)
-#         y0_padded = max(y0 - padding, 0)
-#         x1_padded = min(x1 + padding, img_array.shape[1])
-#         y1_padded = min(y1 + padding, img_array.shape[0])
-        
-#         # Crop the image (left, upper, right, lower)
-#         cropped_img = img.crop((x0_padded, y0_padded, x1_padded, y1_padded))
-        
-#         # Append the cropped image to the list
-#         images.append(cropped_img)
-    
-#     # Save the processed images as a high-resolution PDF to a BytesIO buffer
-#     output_buffer = BytesIO()
-#     if images:
-#         images[0].save(output_buffer, format="PDF", save_all=True, append_images=images[1:], resolution=dpi)
-    
-#     output_buffer.seek(0)
-#     return output_buffer
 
 
 
