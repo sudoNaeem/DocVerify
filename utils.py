@@ -82,58 +82,6 @@ def process_pdf_file(file_bytes):
     return output_buffer
 
 
-# import os
-
-# def extract_images(doc, annotations_info, output_folder="output_images"):
-#     output_images = []
-    
-#     # Ensure the output directory exists
-#     if not os.path.exists(output_folder):
-#         os.makedirs(output_folder)
-    
-#     for idx, annotation in enumerate(annotations_info):
-#         page_number = annotation["page_number"] - 1  # Adjust for 0-indexing
-#         x0, y0, x1, y1 = annotation["start_x"], annotation["start_y"], annotation["end_x"], annotation["end_y"]
-        
-#         # Load the page
-#         page = doc.load_page(page_number)
-        
-#         # Get page dimensions
-#         page_width, page_height = page.rect.width, page.rect.height
-        
-#         # Ensure the coordinates are within the page bounds
-#         x0 = max(0, min(page_width, x0))
-#         y0 = max(0, min(page_height, y0))
-#         x1 = max(0, min(page_width, x1))
-#         y1 = max(0, min(page_height, y1))
-        
-#         # Create a clipping rectangle with validated coordinates
-#         clip = fitz.Rect(x0, y0, x1, y1)
-        
-#         try:
-#             # Get the pixmap using the validated clip
-#             pix = page.get_pixmap(clip=clip)
-            
-#             # Convert pixmap to image
-#             img = cv2.imdecode(np.frombuffer(pix.tobytes(), dtype=np.uint8), cv2.IMREAD_COLOR)
-#             output_images.append(img)
-            
-#             # Save the image locally
-#             output_image_path = os.path.join(output_folder, f"image_{page_number + 1}_{idx + 1}.png")
-#             cv2.imwrite(output_image_path, img)
-            
-#         except Exception as e:
-#             logging.error(f"Error processing page {page_number + 1}: {str(e)}")
-#             raise HTTPException(status_code=500, detail=f"Error processing page {page_number + 1}: {str(e)}")
-    
-#     return output_images
-
-import fitz  # PyMuPDF
-import cv2
-import numpy as np
-import logging
-from fastapi import HTTPException
-
 def extract_images(doc, annotations_info,filename,client):
     
     output_images = []
