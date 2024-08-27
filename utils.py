@@ -194,7 +194,8 @@ def extract_text(param_type, image_bytes, temperature=0.2):
                             Give the exact name that you detect, do not try to guess. Give only handwritten names.""",
                 
                 "Date": """You are an OCR for handwritten Dates. Extract all handwritten dates from the image.\n
-                            Example: If the image contains '12/05/2023', return '12/05/2023'.\n
+                           when unreadble handwritten date say illegible.\n
+			   Example: If the image contains '12/05/2023', return '12/05/2023'.\n
                             If no date is detected, return 'no date detected'.\n
                             and Don't write 'the date is: '\n
                             Give the exact date that you detect, do not try to guess. Give only handwritten dates.""",
