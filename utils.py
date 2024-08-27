@@ -185,6 +185,7 @@ def extract_text(param_type, image_bytes, temperature=0.2):
         prompts = {
                 "Name": """You are an OCR for handwritten Names. Extract all handwritten names from the image.\n
                             Only return handwritten text.\n
+			    when unreadble handwritten name say illegible.\n
                             Not all names are english so dont guess names.\n
                             Example: For Ishan Madhan Return Ishan Madhan.\n
                             detect character by character and join them. Don't guess what the word is.\n 
